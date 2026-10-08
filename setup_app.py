@@ -17,7 +17,7 @@ from setuptools import setup
 
 APP = ['main.py']
 APP_NAME = 'Gnomon'
-APP_VERSION = '1.1.2'
+APP_VERSION = '1.1.3'
 
 # Third-party runtime dependencies: PyObjC and nothing else.
 THIRD_PARTY_PACKAGES = [

@@ -7,8 +7,9 @@ on a tile three centimetres wide that is the difference that shows.
   Light  Black, Blue, Red        deep digits on a pale tile
 
 White and Black are the Daybook/Palestra ink and paper, either way round
-(the original dark and light). The light colours are the deep versions on
-purpose: a bright LED green or amber is unreadable on a pale background.
+(the original dark and light). Blue and Red are as vivid as stays readable
+on a pale tile; an LED green or amber would wash out there altogether,
+which is why those two live on the dark side.
 
 Plain data, no AppKit: the view turns the hex strings into colours.
 """
@@ -51,8 +52,11 @@ SCHEMES: tuple[Scheme, ...] = (
     _dark("green", "Green", "#33FF33"),
     _dark("amber", "Amber", "#FFB000"),
     _light("paper", "Black", INK),
-    _light("navy", "Blue", "#24549A"),     # Daybook's accent
-    _light("crimson", "Red", "#B3261E"),
+    # As close to a lit display as a pale tile allows: the most saturated
+    # blue and red that still clear 4.5:1 against the paper. (The keys date
+    # from the deeper colours these replaced in 1.1.3.)
+    _light("navy", "Blue", "#0057FF"),
+    _light("crimson", "Red", "#DE1508"),
 )
 
 # Dark by default: the tile sits over Meet, which is dark, and a pale tile

@@ -109,8 +109,8 @@ menu; either way the tile shows digits only.
 **Colour schemes are pairs, named for the digits.** Three dark, three light.
 White and Black are the Daybook/Palestra ink and paper either way round.
 Green and Amber are LED-clock colours on black; Blue and Red on the pale tile
-are the deep versions, because a bright LED colour is unreadable on a pale
-background. (1.1.0 borrowed Libram's themes, which vary the tint of a dark
+are the most saturated versions that stay readable there (an LED green or
+amber would wash out on a pale background altogether). (1.1.0 borrowed Libram's themes, which vary the tint of a dark
 background: on a tile this size they were indistinguishable.) White is the
 default because the tile sits over Meet, which is dark, and a pale tile
 beside the camera is a small lamp.
