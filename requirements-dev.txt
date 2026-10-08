@@ -1,0 +1,8 @@
+-r requirements.txt
+
+# Packaging (macOS .app)
+py2app>=0.28
+
+# Tests and lint
+pytest>=9.0
+ruff>=0.14

@@ -1,0 +1,21 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = ["-v", "--tb=short", "-ra"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# py2app output. Already gitignored, but named here so a lint run does not
+# depend on being inside a git checkout to skip it.
+extend-exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]  # Line too long - handled by formatter
+
+[tool.ruff.lint.per-file-ignores]
+# Entry point inserts the project root onto sys.path before importing
+# project modules, so module-level imports legitimately come after setup.
+"main.py" = ["E402"]
+"scripts/*" = ["E402"]

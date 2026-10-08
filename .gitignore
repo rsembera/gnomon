@@ -1,0 +1,19 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+.venv/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Testing / linting
+.pytest_cache/
+.ruff_cache/
+
+# macOS
+.DS_Store
