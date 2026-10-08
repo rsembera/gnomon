@@ -68,9 +68,10 @@ tile at the top centre of the built-in display, just below the menu bar. On a
 Mac with external monitors it picks the screen with the camera housing.
 
 **Digits that hold still.** System font with monospaced numerals, so the time
-does not shimmy as seconds change; right-aligned in a fixed box, so the
-seconds do not jump when 9:59:59 becomes 10:00:00. The colons are lifted to
-the middle of the digits (the font's own colon sits on the baseline).
+does not shimmy as seconds change. The time is centred as it reads, so a
+one-digit hour in 12-hour mode sits in the middle of the tile (at the cost of
+one half-digit shift when 9:59:59 becomes 10:00:00). The colons are lifted
+to the middle of the digits (the font's own colon sits on the baseline).
 
 **A tick that does not drift.** The timer is re-armed from the wall clock
 after every tick instead of repeating every 1.0s, so lateness never

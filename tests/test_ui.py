@@ -180,6 +180,21 @@ class TestFace:
         # And the digits are the intended half of the tile height.
         assert (bottom - top + 1) / high == pytest.approx(clockface.CAP_FRACTION, abs=0.08)
 
+    @pytest.mark.parametrize("text", ["8:19:19", "9:00:00", "12:00:00"])
+    @pytest.mark.parametrize("height", [28.0, 40.0, 60.0])
+    def test_twelve_hour_times_are_centred_too(self, controller, text, height):
+        # A one-digit hour is narrower than the widest time; it must sit in
+        # the middle of the tile, not hang off the right of a wider box.
+        # (Times beginning or ending in 1 are left out on purpose: the test
+        # measures ink, and the numeral 1 does not fill its cell evenly. The
+        # layout centres the cells, which is what keeps the digits still.)
+        c = controller()
+        c.set_height(height)
+        c._view._text = text
+        left, _top, right, _bottom, wide, high = bright_pixel_box(c._view, dark=True)
+        scale = high / height
+        assert (left + right) / 2 == pytest.approx(wide / 2, abs=1.5 * scale)
+
     def test_shows_the_current_time(self, controller):
         import time
 

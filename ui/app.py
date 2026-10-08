@@ -226,7 +226,7 @@ class ClockView(NSView):
         outline.setLineWidth_(1.0)
         outline.stroke()
 
-        font, box_width = self.fitted_font((width, height))
+        font, _box_width = self.fitted_font((width, height))
         if font is None or not self._text:
             return
         text = NSMutableAttributedString.alloc().initWithString_attributes_(
@@ -237,9 +237,11 @@ class ClockView(NSView):
         for index, character in enumerate(self._text):
             if character == ":":
                 text.addAttribute_value_range_(NSBaselineOffsetAttributeName, lift, (index, 1))
-        # Right-align inside the box the widest time occupies, so the
-        # seconds stay put when 9:59:59 becomes 10:00:00 in 12-hour mode.
-        x = (width + box_width) / 2.0 - text.size().width
+        # Centre the time as it actually reads. In 12-hour mode a one-digit
+        # hour is a digit narrower than the widest time the font was sized
+        # for; centring it costs one half-digit shift when 9:59:59 becomes
+        # 10:00:00, which is better than sitting off-centre for nine hours.
+        x = (width - text.size().width) / 2.0
         # Centre the numerals themselves (cap height), not the line box,
         # which carries descender space digits never use.
         baseline = (height - font.capHeight()) / 2.0
