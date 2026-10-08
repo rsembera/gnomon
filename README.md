@@ -19,7 +19,8 @@ including into the menu bar beside the notch.
 - **Menu:** right-click (or two-finger click) the tile — Session Alert,
   24-Hour Time, Colours, Size (Small / Medium / Large), Move to Top Centre,
   Quit Gnomon.
-- **Colours:** Ink, Paper, Slate, Witching Hour, Crimson Veil, Terminal.
+- **Colours:** Ink and Paper (pale on dark, dark on pale), then one bright
+  colour on black: Green, Amber, Red, Blue.
 - **Quit:** from that menu. There is no Dock icon and no menu bar; the tile
   is the whole interface.
 
@@ -29,10 +30,10 @@ Right-click, **Session Alert…**, enter the time the session ends and how much
 warning you want (none, or 1 to 5 minutes). A small dot appears at the left
 of the tile while an alert is set.
 
-- At the warning, the tile flashes: its own two colours swapped, a second on
-  and a second off. **Click the tile** and it stops; the alert stays set.
-- At the end of the session it flashes again, this time **red**, whatever the
-  colour scheme. Click it and the alert is finished.
+- At the warning, the tile flashes **amber**, a second on and a second off.
+  **Click the tile** and it stops; the alert stays set.
+- At the end of the session it flashes again, this time **red**. Click it and
+  the alert is finished. Both flashes are the same in every colour scheme.
 - To change or cancel one, open the same menu item (it shows what is set), or
   choose **Turn Off Session Alert**.
 
@@ -105,18 +106,22 @@ going while it is being dragged or its menu is open.
 **No AM/PM.** 12- or 24-hour follows the macOS setting until changed from the
 menu; either way the tile shows digits only.
 
-**Ink by default.** Ink and Paper are the Daybook/Palestra palette either way
-round; the other four schemes take their names and colours from Libram's
-themes. Ink is the default because the tile sits over Meet, which is dark,
-and a pale tile beside the camera is a small lamp.
+**Colour schemes are pairs, and the digits carry the difference.** Ink and
+Paper are the Daybook/Palestra palette either way round; the rest are
+LED-clock pairs, one bright colour on black. (1.1.0 borrowed Libram's themes,
+which vary the tint of a dark background: on a tile this size they were
+indistinguishable.) Ink is the default because the tile sits over Meet, which
+is dark, and a pale tile beside the camera is a small lamp.
 
 **The alert is arithmetic, not a second timer.** Once a second the tick asks
 one question — given the end time, the warning, and what has been clicked,
 should the tile be flashing now? — so sleep, a closed lid or a changed system
 clock cannot leave it out of step. The flash is slow (one second on, one off)
 because it has to catch the eye beside a camera, not startle anyone. The two
-flashes look different on purpose: if the warning was never clicked, the
-change to red is how you know the session has actually ended.
+flashes are amber and red in every scheme, like a traffic light: fixed, so
+the Amber and Red schemes cannot blur them, and different, so that if the
+warning was never clicked the change to red is how you know the session has
+actually ended.
 
 **A click answers a flash; anything else is a drag.** The view takes every
 mouse-down itself. On a flashing tile the press is consumed; otherwise it is

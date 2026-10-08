@@ -2,9 +2,9 @@
 
 The sequence, for a session ending at 2:50 with a 5-minute warning:
 
-    2:45  the tile starts flashing (the scheme's colours, swapped)
+    2:45  the tile starts flashing amber
           click it: flashing stops, the alert stays armed
-    2:50  the tile starts flashing again (red, in every scheme)
+    2:50  the tile starts flashing again, red
           click it: flashing stops, the alert is finished
 
 A warning of 0 minutes skips the first half. Everything here is a pure

@@ -104,18 +104,16 @@ def _palette(scheme_key: str, flash: str | None = None):
     """(tile, digits, hairline edge) to paint with right now.
 
     `flash` is None normally, and alarm.WARNING or alarm.ENDED during the
-    "on" half of a flash: the warning swaps the scheme's own two colours,
-    the end of the session is the same red whatever the scheme.
+    "on" half of a flash: amber for the warning, red for the end of the
+    session, the same two in every scheme.
     """
-    scheme = schemes.get(scheme_key)
     if flash == alarm.ENDED:
-        return (
-            _srgb(schemes.ALERT_TILE),
-            _srgb(schemes.ALERT_DIGITS),
-            _srgb(schemes.ALERT_DIGITS, 0.25),
-        )
+        tile, digits = schemes.ALERT_TILE, schemes.ALERT_DIGITS
+        return _srgb(tile), _srgb(digits), _srgb(digits, 0.25)
     if flash == alarm.WARNING:
-        return _srgb(scheme.digits), _srgb(scheme.tile), _srgb(scheme.tile, 0.25)
+        tile, digits = schemes.WARNING_TILE, schemes.WARNING_DIGITS
+        return _srgb(tile), _srgb(digits), _srgb(digits, 0.25)
+    scheme = schemes.get(scheme_key)
     return _srgb(scheme.tile), _srgb(scheme.digits), _srgb(scheme.edge, scheme.edge_alpha)
 
 

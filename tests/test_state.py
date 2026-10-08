@@ -16,7 +16,7 @@ def test_missing_file_gives_defaults(tmp_path):
 def test_round_trip(tmp_path):
     path = tmp_path / "nested" / "state.json"  # parent is created on save
     saved = state.State(
-        x=663.0, y=872.0, height=28.0, scheme="terminal", twenty_four=True,
+        x=663.0, y=872.0, height=28.0, scheme="amber", twenty_four=True,
         alarm_end=1_800_000_000.0, alarm_warn_acked=True, warn_minutes=2, end_minute=20,
     )
     state.save(saved, path)
@@ -61,6 +61,14 @@ def test_a_1_0_state_file_keeps_its_appearance(tmp_path):
     path.write_text(json.dumps({"x": 1, "y": 2, "height": 40, "dark": False}), encoding="utf-8")
     assert state.load(path).scheme == "paper"
     path.write_text(json.dumps({"x": 1, "y": 2, "height": 40, "dark": True}), encoding="utf-8")
+    assert state.load(path).scheme == "ink"
+
+
+def test_a_1_1_0_scheme_name_is_carried_over(tmp_path):
+    path = tmp_path / "state.json"
+    path.write_text(json.dumps({"scheme": "terminal"}), encoding="utf-8")
+    assert state.load(path).scheme == "green"
+    path.write_text(json.dumps({"scheme": "crimson-veil"}), encoding="utf-8")
     assert state.load(path).scheme == "ink"
 
 

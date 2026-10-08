@@ -341,21 +341,21 @@ class TestColours:
     def test_choosing_from_the_menu_changes_and_ticks_the_scheme(self, controller):
         c = controller()
         colours = c.build_menu().itemWithTitle_("Colours").submenu()
-        c.chooseScheme_(colours.itemWithTitle_("Terminal"))
-        assert c._state.scheme == c._view._scheme == "terminal"
+        c.chooseScheme_(colours.itemWithTitle_("Green"))
+        assert c._state.scheme == c._view._scheme == "green"
         colours = c.build_menu().itemWithTitle_("Colours").submenu()
         ticked = [
             colours.itemAtIndex_(i).title()
             for i in range(colours.numberOfItems())
             if colours.itemAtIndex_(i).state() == AppKit.NSControlStateValueOn
         ]
-        assert ticked == ["Terminal"]
+        assert ticked == ["Green"]
 
     def test_scheme_survives_a_relaunch(self, controller):
         first = controller()
-        first.set_scheme("witching-hour")
+        first.set_scheme("amber")
         first.save_now()
-        assert controller()._view._scheme == "witching-hour"
+        assert controller()._view._scheme == "amber"
 
 
 class TestSessionAlert:
@@ -384,13 +384,16 @@ class TestSessionAlert:
         c.refresh(self.WARN + 2)
         assert c._view._flash == alarm.WARNING
 
-    def test_warning_flash_swaps_the_scheme_colours(self, controller):
+    @pytest.mark.parametrize("scheme", [scheme.key for scheme in schemes.SCHEMES])
+    def test_warning_is_amber_and_the_end_is_red_in_every_scheme(self, controller, scheme):
         c = self.armed(controller)
-        ink = schemes.get("ink")
+        c.set_scheme(scheme)
         c.refresh(self.WARN - 2)
-        assert distance(tile_colour(c._view), rgb(ink.tile)) < 0.03
+        assert distance(tile_colour(c._view), rgb(schemes.get(scheme).tile)) < 0.03
         c.refresh(self.WARN)
-        assert distance(tile_colour(c._view), rgb(ink.digits)) < 0.03
+        assert distance(tile_colour(c._view), rgb(schemes.WARNING_TILE)) < 0.03
+        c.refresh(self.END)
+        assert distance(tile_colour(c._view), rgb(schemes.ALERT_TILE)) < 0.03
 
     def test_a_click_stops_the_warning_but_keeps_the_alert(self, controller):
         c = self.armed(controller)

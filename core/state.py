@@ -75,8 +75,9 @@ def load(path: Path | None = None) -> State:
     height = _number(raw.get("height"))
     if height is not None:
         state.height = clamp_height(height)
-    if schemes.is_known(raw.get("scheme")):
-        state.scheme = raw["scheme"]
+    scheme = schemes.resolve(raw.get("scheme"))  # follows 1.1.0's retired names
+    if scheme is not None:
+        state.scheme = scheme
     elif raw.get("dark") is False:
         # 1.0 stored a dark/paper switch instead of a scheme name.
         state.scheme = "paper"
