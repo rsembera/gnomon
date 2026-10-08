@@ -4,8 +4,8 @@ Why this is native AppKit and not Flask + pywebview like everything else
 in the portfolio: the whole job is to sit on top of a video call without
 getting in its way, and a web view cannot do that properly.
 
-  * The panel is NON-ACTIVATING. Dragging or right-clicking it does not
-    take keyboard focus away from Meet. A pywebview window is an ordinary
+  * The panel is NON-ACTIVATING. Dragging, clicking or right-clicking it
+    does not take keyboard focus away from Meet. A pywebview window is an ordinary
     NSWindow; clicking it activates the app behind it.
   * pywebview's own frameless-drag code flings the window off-screen when
     it is dragged against the top edge, which is exactly where this
@@ -66,7 +66,8 @@ from Foundation import (
 )
 from PyObjCTools import AppHelper
 
-from core import clockface, state
+from core import alarm, clockface, schemes, state
+from ui import alert_form
 
 APP_NAME = "Gnomon"
 
@@ -76,12 +77,6 @@ APP_NAME = "Gnomon"
 # so the proportions are exact for the default and near enough elsewhere;
 # drawRect_ re-measures at the size it actually draws.
 REF_SIZE = 28.0
-
-# Ink on paper, the Daybook/Palestra palette. "Ink" is the same two colours
-# the other way round.
-INK = "#1D1B17"
-PAPER = "#FAF7F0"
-RULE = "#DFD9CC"
 
 PANEL_STYLE = (
     NSWindowStyleMaskBorderless
@@ -105,11 +100,23 @@ def _srgb(hex_colour: str, alpha: float = 1.0):
     return NSColor.colorWithSRGBRed_green_blue_alpha_(r, g, b, alpha)
 
 
-def _palette(dark: bool):
-    """(tile, digits, hairline edge) for the chosen appearance."""
-    if dark:
-        return _srgb(INK), _srgb(PAPER), _srgb(PAPER, 0.16)
-    return _srgb(PAPER), _srgb(INK), _srgb(RULE)
+def _palette(scheme_key: str, flash: str | None = None):
+    """(tile, digits, hairline edge) to paint with right now.
+
+    `flash` is None normally, and alarm.WARNING or alarm.ENDED during the
+    "on" half of a flash: the warning swaps the scheme's own two colours,
+    the end of the session is the same red whatever the scheme.
+    """
+    scheme = schemes.get(scheme_key)
+    if flash == alarm.ENDED:
+        return (
+            _srgb(schemes.ALERT_TILE),
+            _srgb(schemes.ALERT_DIGITS),
+            _srgb(schemes.ALERT_DIGITS, 0.25),
+        )
+    if flash == alarm.WARNING:
+        return _srgb(scheme.digits), _srgb(scheme.tile), _srgb(scheme.tile, 0.25)
+    return _srgb(scheme.tile), _srgb(scheme.digits), _srgb(scheme.edge, scheme.edge_alpha)
 
 
 def _digit_font(size: float):
@@ -153,7 +160,9 @@ class ClockView(NSView):
         if self is None:
             return None
         self._text = ""
-        self._dark = True
+        self._scheme = schemes.DEFAULT
+        self._flash = None    # alarm.WARNING / alarm.ENDED while lit, else None
+        self._armed = False   # a session alert is set: show the small dot
         self._controller = None
         font = _digit_font(REF_SIZE)
         reference = NSMutableAttributedString.alloc().initWithString_attributes_(
@@ -174,12 +183,21 @@ class ClockView(NSView):
         return False
 
     def mouseDownCanMoveWindow(self):
-        # With the panel's movableByWindowBackground, this is the whole
-        # drag implementation: the window server moves the tile itself.
-        return True
+        # False so that mouse-downs come here (see mouseDown_) instead of
+        # being turned into a window drag before the view hears of them.
+        return False
 
     def acceptsFirstMouse_(self, event):
         return True
+
+    def mouseDown_(self, event):
+        # A click on a flashing tile answers the flash and does nothing
+        # else. Any other press starts a drag: performWindowDragWithEvent_
+        # hands the move to the window server, the same thing a title bar
+        # does, so the tile follows the pointer exactly.
+        if self._controller is not None and self._controller.acknowledge():
+            return
+        self.window().performWindowDragWithEvent_(event)
 
     def menuForEvent_(self, event):
         return self._controller.build_menu() if self._controller else None
@@ -214,7 +232,7 @@ class ClockView(NSView):
     def drawRect_(self, dirty):
         bounds = self.bounds()
         width, height = bounds.size.width, bounds.size.height
-        tile, digits, edge = _palette(self._dark)
+        tile, digits, edge = _palette(self._scheme, self._flash)
 
         radius = min(height * 0.24, 16.0)
         outline = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
@@ -247,6 +265,15 @@ class ClockView(NSView):
         baseline = (height - font.capHeight()) / 2.0
         text.drawAtPoint_((x, baseline + font.descender()))
 
+        if self._armed and self._flash is None:
+            # A session alert is set: a small dot in the left margin, so it
+            # can be checked at a glance without opening the menu.
+            r = max(1.25, height * 0.04)
+            digits.colorWithAlphaComponent_(0.55).setFill()
+            NSBezierPath.bezierPathWithOvalInRect_(
+                NSMakeRect(height * 0.14 - r, height / 2.0 - r, 2 * r, 2 * r)
+            ).fill()
+
 
 class Controller(NSObject):
     """Owns the panel, the once-a-second timer and the remembered state."""
@@ -261,6 +288,14 @@ class Controller(NSObject):
         self._timer = None
         self._aspect = 1.0
         self._exact_height = self._state.height
+        # A saved alert is picked up again only if its session has not ended.
+        self._alarm = None
+        if self._state.alarm_end is not None and self._state.alarm_end > time.time():
+            self._alarm = alarm.Alarm(
+                end=self._state.alarm_end,
+                warn_minutes=self._state.warn_minutes,
+                warn_acked=self._state.alarm_warn_acked,
+            )
         return self
 
     # ------------------------------------------------------------------
@@ -271,7 +306,7 @@ class Controller(NSObject):
     def build(self, show: bool = True):
         view = ClockView.alloc().initWithFrame_(NSMakeRect(0, 0, 144, 40))
         view._controller = self
-        view._dark = self._state.dark
+        view._scheme = self._state.scheme
         self._aspect = clockface.aspect_ratio(view._ref_width, view._ref_cap)
 
         size = clockface.tile_size(self._state.height, self._aspect)
@@ -292,7 +327,9 @@ class Controller(NSObject):
         panel.setOpaque_(False)
         panel.setBackgroundColor_(NSColor.clearColor())
         panel.setHasShadow_(True)
-        panel.setMovableByWindowBackground_(True)
+        # Dragging is started by the view (ClockView.mouseDown_), which needs
+        # the press for itself when the tile is flashing.
+        panel.setMovableByWindowBackground_(False)
         # Aspect-locked: dragging any edge scales the whole clock.
         panel.setContentAspectRatio_(size)
         panel.setContentMinSize_(clockface.tile_size(clockface.MIN_HEIGHT, self._aspect))
@@ -345,14 +382,25 @@ class Controller(NSObject):
         return system_uses_24h() if chosen is None else chosen
 
     @objc.python_method
-    def refresh(self):
-        now = time.localtime()
+    def refresh(self, now: float | None = None):
+        """Bring the face up to date: the digits, and the alert's flash."""
+        now = time.time() if now is None else now
+        local = time.localtime(now)
         text = clockface.format_time(
-            now.tm_hour, now.tm_min, now.tm_sec, self.uses_24h()
+            local.tm_hour, local.tm_min, local.tm_sec, self.uses_24h()
         )
-        if text != self._view._text:
-            self._view._text = text
-            self._view.setNeedsDisplay_(True)
+
+        if alarm.is_spent(self._alarm, now):
+            self._alarm = None  # the end flash ran its course unclicked
+            self.save_soon()
+        flash = alarm.flashing(self._alarm, now)
+        lit = flash if flash and alarm.flash_on(now) else None
+        armed = self._alarm is not None
+
+        view = self._view
+        if (text, lit, armed) != (view._text, view._flash, view._armed):
+            view._text, view._flash, view._armed = text, lit, armed
+            view.setNeedsDisplay_(True)
 
     @objc.python_method
     def schedule_tick(self):
@@ -416,6 +464,56 @@ class Controller(NSObject):
             self.go_home()
 
     # ------------------------------------------------------------------
+    # Session alert
+    # ------------------------------------------------------------------
+
+    @objc.python_method
+    def set_alarm(self, hour: int, minute: int, warn_minutes: int, now: float | None = None):
+        now = time.time() if now is None else now
+        self._alarm = alarm.arm(alarm.next_occurrence(hour, minute, now), warn_minutes, now)
+        self._state.warn_minutes = self._alarm.warn_minutes
+        self._state.end_minute = minute
+        self.refresh(now)
+        self.save_soon()
+
+    @objc.python_method
+    def clear_alarm(self, now: float | None = None):
+        self._alarm = None
+        self.refresh(now)
+        self.save_soon()
+
+    @objc.python_method
+    def acknowledge(self, now: float | None = None) -> bool:
+        """A click on the tile. True if it answered a flash (and so should
+        not also start a drag)."""
+        now = time.time() if now is None else now
+        if alarm.flashing(self._alarm, now) is None:
+            return False
+        self._alarm = alarm.acknowledge(self._alarm, now)
+        self.refresh(now)
+        self.save_soon()
+        return True
+
+    def sessionAlert_(self, sender):
+        now = time.time()
+        if self._alarm is not None:
+            end, warn = self._alarm.end, self._alarm.warn_minutes
+        else:
+            end = alarm.default_end(self._state.end_minute, now)
+            warn = self._state.warn_minutes
+        answer = alert_form.ask(end, warn, armed=self._alarm is not None)
+        if answer is None:
+            return
+        if answer[0] == alert_form.OFF:
+            self.clear_alarm()
+        else:
+            _, hour, minute, warn_minutes = answer
+            self.set_alarm(hour, minute, warn_minutes)
+
+    def turnOffAlert_(self, sender):
+        self.clear_alarm()
+
+    # ------------------------------------------------------------------
     # Menu
     # ------------------------------------------------------------------
 
@@ -432,8 +530,24 @@ class Controller(NSObject):
             target_menu.addItem_(item)
             return item
 
+        if self._alarm is not None:
+            summary = alarm.describe(self._alarm, time.time(), self.uses_24h())
+            add(menu, f"Session Alert: {summary}\u2026", "sessionAlert:", checked=True)
+            add(menu, "Turn Off Session Alert", "turnOffAlert:")
+        else:
+            add(menu, "Session Alert\u2026", "sessionAlert:")
+        menu.addItem_(NSMenuItem.separatorItem())
+
         add(menu, "24-Hour Time", "toggleHours:", checked=self.uses_24h())
-        add(menu, "Dark", "toggleTheme:", checked=self._state.dark)
+
+        colours = NSMenu.alloc().initWithTitle_("Colours")
+        colours.setAutoenablesItems_(False)
+        for index, scheme in enumerate(schemes.SCHEMES):
+            add(
+                colours, scheme.label, "chooseScheme:",
+                checked=scheme.key == self._state.scheme,
+            ).setTag_(index)
+        add(menu, "Colours", None).setSubmenu_(colours)
 
         sizes = NSMenu.alloc().initWithTitle_("Size")
         sizes.setAutoenablesItems_(False)
@@ -452,9 +566,13 @@ class Controller(NSObject):
         self.refresh()
         self.save_soon()
 
-    def toggleTheme_(self, sender):
-        self._state.dark = not self._state.dark
-        self._view._dark = self._state.dark
+    def chooseScheme_(self, sender):
+        self.set_scheme(schemes.SCHEMES[sender.tag()].key)
+
+    @objc.python_method
+    def set_scheme(self, key: str):
+        self._state.scheme = schemes.get(key).key
+        self._view._scheme = self._state.scheme
         self._view.setNeedsDisplay_(True)
         self._panel.invalidateShadow()
         self.save_soon()
@@ -475,6 +593,8 @@ class Controller(NSObject):
             return
         x, y, _width, height = _rect(self._panel.frame())
         self._state.x, self._state.y, self._state.height = x, y, height
+        self._state.alarm_end = self._alarm.end if self._alarm else None
+        self._state.alarm_warn_acked = bool(self._alarm and self._alarm.warn_acked)
         try:
             state.save(self._state)
         except OSError:

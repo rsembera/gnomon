@@ -3,8 +3,8 @@
     python main.py
 
 A small always-on-top clock with seconds. Drag it anywhere; drag an edge or
-pinch to resize; right-click for the menu (including Quit). The packaged
-app (see setup_app.py) starts here too.
+pinch to resize; right-click for the menu (colours, session alert, Quit).
+The packaged app (see setup_app.py) starts here too.
 """
 
 import sys

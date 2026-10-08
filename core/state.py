@@ -1,4 +1,5 @@
-"""Remembered settings: where the tile sits, how big it is, how it looks.
+"""Remembered settings: where the tile sits, how big it is, how it looks,
+and the session alert if one is armed.
 
 One small JSON file in the OS's application-data folder, the same place
 EdgeCase and MailRepo keep theirs, so replacing the .app never loses it.
@@ -14,6 +15,7 @@ import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from core import alarm, schemes
 from core.clockface import DEFAULT_HEIGHT, clamp_height
 
 STATE_FILE = "state.json"
@@ -26,12 +28,18 @@ class State:
     x: float | None = None
     y: float | None = None
     height: float = DEFAULT_HEIGHT
-    # Dark tile by default: it sits over Meet, which is dark, and a paper
-    # tile beside the camera is a small lamp.
-    dark: bool = True
+    scheme: str = schemes.DEFAULT
     # None follows the macOS 12/24-hour setting; True/False is an explicit
     # choice made from the menu.
     twenty_four: bool | None = None
+    # The armed session alert, if any (see core/alarm.py). Kept here so that
+    # quitting and reopening mid-session does not lose it.
+    alarm_end: float | None = None
+    alarm_warn_acked: bool = False
+    # What the alert form offers next time: the warning last chosen, and the
+    # minute of the hour sessions last ended on.
+    warn_minutes: int = alarm.DEFAULT_WARN_MINUTES
+    end_minute: int = alarm.DEFAULT_END_MINUTE
 
 
 def data_dir() -> Path:
@@ -67,10 +75,24 @@ def load(path: Path | None = None) -> State:
     height = _number(raw.get("height"))
     if height is not None:
         state.height = clamp_height(height)
-    if isinstance(raw.get("dark"), bool):
-        state.dark = raw["dark"]
+    if schemes.is_known(raw.get("scheme")):
+        state.scheme = raw["scheme"]
+    elif raw.get("dark") is False:
+        # 1.0 stored a dark/paper switch instead of a scheme name.
+        state.scheme = "paper"
     if isinstance(raw.get("twenty_four"), bool):
         state.twenty_four = raw["twenty_four"]
+
+    alarm_end = _number(raw.get("alarm_end"))
+    if alarm_end is not None:
+        state.alarm_end = alarm_end
+        state.alarm_warn_acked = raw.get("alarm_warn_acked") is True
+    warn = _number(raw.get("warn_minutes"))
+    if warn is not None:
+        state.warn_minutes = alarm.clamp_warn(warn)
+    end_minute = _number(raw.get("end_minute"))
+    if end_minute is not None and 0 <= end_minute < 60:
+        state.end_minute = int(end_minute)
     return state
 
 

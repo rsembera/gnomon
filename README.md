@@ -16,12 +16,34 @@ including into the menu bar beside the notch.
 - **Resize:** drag any edge, or pinch on the trackpad with the pointer over
   the tile. The shape is locked, so the whole clock scales; 20 to 240 points
   tall.
-- **Menu:** right-click (or two-finger click) the tile — 24-Hour Time, Dark,
-  Size (Small / Medium / Large), Move to Top Centre, Quit Gnomon.
+- **Menu:** right-click (or two-finger click) the tile — Session Alert,
+  24-Hour Time, Colours, Size (Small / Medium / Large), Move to Top Centre,
+  Quit Gnomon.
+- **Colours:** Ink, Paper, Slate, Witching Hour, Crimson Veil, Terminal.
 - **Quit:** from that menu. There is no Dock icon and no menu bar; the tile
   is the whole interface.
 
-Position, size and appearance are remembered between launches. If the
+### Session alert
+
+Right-click, **Session Alert…**, enter the time the session ends and how much
+warning you want (none, or 1 to 5 minutes). A small dot appears at the left
+of the tile while an alert is set.
+
+- At the warning, the tile flashes: its own two colours swapped, a second on
+  and a second off. **Click the tile** and it stops; the alert stays set.
+- At the end of the session it flashes again, this time **red**, whatever the
+  colour scheme. Click it and the alert is finished.
+- To change or cancel one, open the same menu item (it shows what is set), or
+  choose **Turn Off Session Alert**.
+
+An end time that has already passed today is taken to mean tomorrow, and the
+menu says so ("9:00 tomorrow"), so a mistyped time does not fail silently. An
+end flash that nobody clicks stops by itself after ten minutes. The form
+opens on the minute of the hour you used last (ten to the hour, the first
+time) and the warning you used last.
+
+Position, size, colours and any alert that is set are remembered between
+launches. If the
 remembered spot is on a monitor that is no longer attached, the clock opens
 at top centre instead.
 
@@ -56,8 +78,10 @@ WebKit process is a lot of machinery to keep running through a session for
 eight glyphs. PyObjC is the only dependency.
 
 **It never takes focus.** The tile is a non-activating panel that refuses to
-become the key window, so dragging it or opening its menu leaves keyboard
-focus in Meet.
+become the key window, so dragging it, clicking it or opening its menu leaves
+keyboard focus in Meet. The one exception is the session-alert form, which
+has to be typed into: it takes focus while it is open and hands it back to
+whatever was in front when it closes.
 
 **Above everything, on every Space.** Status window level (above normal
 windows and the menu bar), joined to all Spaces and flagged as a full-screen
@@ -81,14 +105,29 @@ going while it is being dragged or its menu is open.
 **No AM/PM.** 12- or 24-hour follows the macOS setting until changed from the
 menu; either way the tile shows digits only.
 
-**Ink on paper, inverted by default.** The Daybook/Palestra palette. Dark is
-the default because the tile sits over Meet, which is dark, and a paper tile
-beside the camera is a small lamp. "Dark" in the menu switches to paper.
+**Ink by default.** Ink and Paper are the Daybook/Palestra palette either way
+round; the other four schemes take their names and colours from Libram's
+themes. Ink is the default because the tile sits over Meet, which is dark,
+and a pale tile beside the camera is a small lamp.
+
+**The alert is arithmetic, not a second timer.** Once a second the tick asks
+one question — given the end time, the warning, and what has been clicked,
+should the tile be flashing now? — so sleep, a closed lid or a changed system
+clock cannot leave it out of step. The flash is slow (one second on, one off)
+because it has to catch the eye beside a camera, not startle anyone. The two
+flashes look different on purpose: if the warning was never clicked, the
+change to red is how you know the session has actually ended.
+
+**A click answers a flash; anything else is a drag.** The view takes every
+mouse-down itself. On a flashing tile the press is consumed; otherwise it is
+handed to the window server as a window drag (`performWindowDragWithEvent_`),
+the same mechanism a title bar uses.
 
 ## Data
 
 One file: `~/Library/Application Support/Gnomon/state.json` (position, size,
-appearance, hour mode). Written atomically, a moment after the tile stops
+colour scheme, hour mode, the alert that is set, and the last-used warning
+and end minute). Written atomically, a moment after the tile stops
 moving and again on quit. Delete it to reset everything.
 `GNOMON_DATA_DIR` overrides the folder.
 
@@ -99,9 +138,12 @@ gnomon/
   main.py               # Entry point (also what the .app runs)
   core/
     clockface.py         # Time formatting, tick timing, tile geometry — no AppKit
+    alarm.py             # Session alert: when to flash, what a click does — no AppKit
+    schemes.py           # Colour schemes (plain data)
     state.py             # Remembered settings: load (forgiving) / save (atomic)
   ui/
     app.py               # The panel, the view that draws it, the menu, the timer
+    alert_form.py        # The session-alert form (the only place that takes typing)
   scripts/
     make_icon.py         # Draws assets/icon.icns with AppKit + iconutil
   assets/
@@ -119,12 +161,13 @@ gnomon/
 
 `core/` is tested directly. `tests/test_ui.py` builds the real panel without
 showing it and renders the face off-screen: it checks that the digits fit and
-are centred at every size in both appearances, that the menu items act, that
-presets and pinch resize about the top centre, and that position and size
-survive a relaunch.
+are centred at every size, that every colour scheme paints what it says, that
+the menu items act, that presets and pinch resize about the top centre, and
+that position, size, colours and a set alert survive a relaunch. The alert is
+walked through its whole sequence against a fixed clock, including the
+colours actually painted during each flash.
 
 What the tests cannot reach is the window server's half of the gestures — the
-mouse drag itself and the edge resize. Those are AppKit's stock behaviour for
-a panel configured this way, and the tests pin that configuration
-(movable-by-background, resizable, aspect-locked), but the gestures
-themselves are only ever checked by hand.
+mouse drag itself and the edge resize — or the alert form actually on screen
+(it is built and inspected, never run). The tests pin the configuration those
+depend on, but the gestures themselves are only ever checked by hand.
