@@ -174,9 +174,121 @@ class TestPlacement:
     def test_move_to_top_centre(self, controller):
         c = controller()
         c._panel.setFrameOrigin_((50, 50))
-        c.moveToTopCentre_(None)
+        c.move_to("top-centre")
         x, y, w, h = frame_of(c)
         assert (x, y) == tuple(c.home_origin((w, h)))
+
+
+def menu_item_for(c, submenu_title, title):
+    return c.build_menu().itemWithTitle_(submenu_title).submenu().itemWithTitle_(title)
+
+
+def visible_frame(c):
+    f = c._panel.screen().visibleFrame()
+    return (f.origin.x, f.origin.y, f.size.width, f.size.height)
+
+
+def inside(frame, bounds):
+    x, y, w, h = frame
+    bx, by, bw, bh = bounds
+    return bx <= x and x + w <= bx + bw and by <= y and y + h <= by + bh
+
+
+class TestMoveTo:
+    LABELS = [label for _key, label in clockface.ANCHORS]
+
+    def test_menu_lists_the_six_places_in_order(self, controller):
+        places = controller().build_menu().itemWithTitle_("Move To").submenu()
+        assert [places.itemAtIndex_(i).title() for i in range(places.numberOfItems())] == [
+            "Top Centre", "Top Right", "Bottom Right",
+            "Bottom Centre", "Bottom Left", "Top Left",
+        ]
+
+    @pytest.mark.parametrize("anchor,label", clockface.ANCHORS)
+    def test_each_place_parks_the_tile_there_on_screen(self, controller, anchor, label):
+        c = controller()
+        c.moveTo_(menu_item_for(c, "Move To", label))
+        x, y, w, h = frame_of(c)
+        vx, vy, vw, vh = visible_frame(c)
+        gap = clockface.EDGE_GAP
+        assert inside((x, y, w, h), (vx, vy, vw, vh))
+        vertical, horizontal = anchor.split("-")
+        assert (y + h == vy + vh - gap) if vertical == "top" else (y == vy + gap)
+        if horizontal == "left":
+            assert x == vx + gap
+        elif horizontal == "right":
+            assert x + w == vx + vw - gap
+        else:
+            screen = c._panel.screen().frame()
+            assert x + w / 2 == pytest.approx(screen.origin.x + screen.size.width / 2, abs=1)
+
+    def test_the_six_places_are_six_different_spots(self, controller):
+        c = controller()
+        spots = set()
+        for anchor, _label in clockface.ANCHORS:
+            c.move_to(anchor)
+            spots.add(frame_of(c)[:2])
+        assert len(spots) == 6
+
+    @pytest.mark.parametrize("anchor,label", clockface.ANCHORS)
+    def test_a_parked_tile_stays_parked_when_resized(self, controller, anchor, label):
+        # Without this a tile in a bottom corner grows down into the Dock,
+        # and one in a left or right corner grows off the side.
+        c = controller()
+        c.move_to(anchor)
+        for height in (60.0, 120.0, 28.0):
+            c.set_height(height)
+            x, y, w, h = frame_of(c)
+            assert h == height
+            assert (x, y) == tuple(c.anchored_origin(anchor, (w, h)))
+            assert inside((x, y, w, h), visible_frame(c))
+
+    def test_the_place_it_is_parked_at_is_ticked(self, controller):
+        c = controller()
+        c.move_to("bottom-left")
+        places = c.build_menu().itemWithTitle_("Move To").submenu()
+        ticked = [
+            places.itemAtIndex_(i).title()
+            for i in range(places.numberOfItems())
+            if places.itemAtIndex_(i).state() == AppKit.NSControlStateValueOn
+        ]
+        assert ticked == ["Bottom Left"]
+
+    def test_dragging_it_away_lets_go_of_the_place(self, controller):
+        c = controller()
+        c.move_to("bottom-right")
+        x, y, w, h = frame_of(c)
+        c._panel.setFrameOrigin_((x - 300, y + 200))     # what a drag does
+        assert c.current_anchor() is None
+        assert c.build_menu().itemWithTitle_("Move To").submenu().itemWithTitle_(
+            "Bottom Right"
+        ).state() == AppKit.NSControlStateValueOff
+        # ... and a resize now grows from where it was dragged to, as before.
+        x0, y0, w0, h0 = frame_of(c)
+        c.set_height(60)
+        x1, y1, w1, h1 = frame_of(c)
+        assert y1 + h1 == y0 + h0
+        assert x1 + w1 / 2 == pytest.approx(x0 + w0 / 2, abs=1)
+
+    def test_the_place_survives_a_relaunch(self, controller):
+        first = controller()
+        first.move_to("top-right")
+        first.save_now()
+        second = controller()
+        assert frame_of(second) == frame_of(first)
+        assert second.current_anchor() == "top-right"
+        second.set_height(60)   # still parked after reopening
+        x, y, w, h = frame_of(second)
+        assert (x, y) == tuple(second.anchored_origin("top-right", (w, h)))
+
+    def test_a_stale_place_in_the_state_file_is_ignored(self, controller):
+        # Saved as parked top-right, but the saved position is somewhere else.
+        first = controller()
+        hx, hy = first.home_origin(frame_of(first)[2:])
+        state.save(state.State(x=hx - 200, y=hy - 300, anchor="top-right"))
+        c = controller()
+        assert c.current_anchor() is None
+        assert frame_of(c)[:2] == (hx - 200, hy - 300)
 
 
 class TestSizing:
@@ -262,7 +374,7 @@ class TestMenu:
         titles = [menu.itemAtIndex_(i).title() for i in range(menu.numberOfItems())]
         assert titles == [
             "Session Alert\u2026", "",
-            "24-Hour Time", "Colours", "Size", "Move to Top Centre", "",
+            "24-Hour Time", "Colours", "Size", "Move To", "",
             "Quit Gnomon",
         ]
         colours = menu.itemWithTitle_("Colours").submenu()
@@ -279,7 +391,7 @@ class TestMenu:
         c.set_alarm(14, 50, 5, now=NOW)  # so "Turn Off Session Alert" is there too
         menu = c.build_menu()
         items = [menu.itemAtIndex_(i) for i in range(menu.numberOfItems())]
-        for title in ("Colours", "Size"):
+        for title in ("Colours", "Size", "Move To"):
             submenu = menu.itemWithTitle_(title).submenu()
             items += [submenu.itemAtIndex_(i) for i in range(submenu.numberOfItems())]
         for item in items:

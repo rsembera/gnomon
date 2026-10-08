@@ -16,7 +16,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from core import alarm, schemes
-from core.clockface import DEFAULT_HEIGHT, clamp_height
+from core.clockface import DEFAULT_HEIGHT, clamp_height, is_anchor
 
 STATE_FILE = "state.json"
 
@@ -28,6 +28,10 @@ class State:
     x: float | None = None
     y: float | None = None
     height: float = DEFAULT_HEIGHT
+    # The "Move To" spot the tile was last parked at, if any, so a resize
+    # can keep it parked there. Only trusted while the tile is still at
+    # that spot; dragging it away is how the anchor lapses.
+    anchor: str | None = None
     scheme: str = schemes.DEFAULT
     # None follows the macOS 12/24-hour setting; True/False is an explicit
     # choice made from the menu.
@@ -75,6 +79,8 @@ def load(path: Path | None = None) -> State:
     height = _number(raw.get("height"))
     if height is not None:
         state.height = clamp_height(height)
+    if is_anchor(raw.get("anchor")):
+        state.anchor = raw["anchor"]
     scheme = schemes.resolve(raw.get("scheme"))  # follows 1.1.0's retired names
     if scheme is not None:
         state.scheme = scheme

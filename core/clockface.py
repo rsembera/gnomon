@@ -33,8 +33,20 @@ PAD_FRACTION = 0.28  # breathing room left and right of the digits
 # every time of day fits in the box this one occupies.
 WIDEST = "00:00:00"
 
-# Gap between the tile and the bottom of the menu bar at the default spot.
-TOP_GAP = 6.0
+# Gap between the tile and whatever it is parked against: the menu bar, the
+# Dock, or the side of the screen.
+EDGE_GAP = 6.0
+
+# The six places "Move To" offers, clockwise from top centre, as
+# (key, menu label). The key is "<vertical>-<horizontal>".
+ANCHORS: tuple[tuple[str, str], ...] = (
+    ("top-centre", "Top Centre"),
+    ("top-right", "Top Right"),
+    ("bottom-right", "Bottom Right"),
+    ("bottom-centre", "Bottom Centre"),
+    ("bottom-left", "Bottom Left"),
+    ("top-left", "Top Left"),
+)
 
 # How much of the tile must remain on a screen for it to count as
 # reachable (i.e. there is something to grab and drag back).
@@ -99,17 +111,35 @@ def digit_scale(size: Size, box_width: float, cap: float) -> float:
     return max(0.0, min(by_height, by_width))
 
 
-def top_centre_origin(screen: Rect, visible: Rect, size: Size) -> tuple[float, float]:
-    """Origin that puts the tile at the top centre of a screen.
+def is_anchor(key) -> bool:
+    return isinstance(key, str) and any(key == anchor for anchor, _label in ANCHORS)
 
-    Centred on the full screen frame (on a MacBook that is where the camera
-    is) and tucked just under the menu bar, whose bottom edge is the top of
-    the visible frame.
+
+def anchored_origin(screen: Rect, visible: Rect, size: Size, anchor: str) -> tuple[float, float]:
+    """Origin that parks the tile at one of the six ANCHORS on a screen.
+
+    Top and bottom, left and right are measured from the VISIBLE frame, so
+    the tile sits just under the menu bar, just above the Dock, and clear
+    of a Dock on the side. Centre is the centre of the full screen frame,
+    because on a MacBook that is where the camera is.
     """
+    vertical, horizontal = anchor.split("-")
     sx, _sy, sw, _sh = screen
-    _vx, vy, _vw, vh = visible
+    vx, vy, vw, vh = visible
     width, height = size
-    return (round(sx + (sw - width) / 2.0), round(vy + vh - height - TOP_GAP))
+    if horizontal == "left":
+        x = vx + EDGE_GAP
+    elif horizontal == "right":
+        x = vx + vw - width - EDGE_GAP
+    else:
+        x = sx + (sw - width) / 2.0
+    y = vy + vh - height - EDGE_GAP if vertical == "top" else vy + EDGE_GAP
+    return (round(x), round(y))
+
+
+def top_centre_origin(screen: Rect, visible: Rect, size: Size) -> tuple[float, float]:
+    """Where the tile opens the first time: top centre, under the camera."""
+    return anchored_origin(screen, visible, size, "top-centre")
 
 
 def is_reachable(frame: Rect, screens: list[Rect], margin: float = GRAB_MARGIN) -> bool:
@@ -133,8 +163,9 @@ def is_reachable(frame: Rect, screens: list[Rect], margin: float = GRAB_MARGIN) 
 def resized_frame(frame: Rect, size: Size) -> Rect:
     """New frame of `size` that keeps the top edge and horizontal centre.
 
-    The clock usually lives at the top of the screen under the camera, so
-    growing it downward from a fixed top-centre keeps it where it was put.
+    For a tile that was dragged into place: growing it downward from a
+    fixed top-centre keeps it where it was put. (A tile parked with "Move
+    To" is instead re-parked at its anchor; see anchored_origin.)
     """
     x, y, w, h = frame
     new_w, new_h = size

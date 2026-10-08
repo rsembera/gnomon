@@ -78,14 +78,58 @@ class TestPlacement:
     def test_top_centre_is_centred_and_just_under_the_menu_bar(self):
         x, y = clockface.top_centre_origin(self.SCREEN, self.VISIBLE, (144.0, 40.0))
         assert x == (1470 - 144) / 2
-        assert y + 40 == 918 - clockface.TOP_GAP
+        assert y + 40 == 918 - clockface.EDGE_GAP
 
     def test_top_centre_on_a_second_screen_uses_that_screens_origin(self):
         screen = (1470.0, 100.0, 1920.0, 1080.0)
         visible = (1470.0, 100.0, 1920.0, 1055.0)
         x, y = clockface.top_centre_origin(screen, visible, (144.0, 40.0))
         assert x == 1470 + (1920 - 144) / 2
-        assert y == 100 + 1055 - 40 - clockface.TOP_GAP
+        assert y == 100 + 1055 - 40 - clockface.EDGE_GAP
+
+    # The same screen with a 70pt Dock along the bottom.
+    DOCKED = (0.0, 70.0, 1470.0, 848.0)
+
+    def test_six_anchors_clockwise_from_top_centre(self):
+        assert [key for key, _label in clockface.ANCHORS] == [
+            "top-centre", "top-right", "bottom-right",
+            "bottom-centre", "bottom-left", "top-left",
+        ]
+        assert all(clockface.is_anchor(key) for key, _label in clockface.ANCHORS)
+        assert not clockface.is_anchor("middle") and not clockface.is_anchor(None)
+
+    def test_each_anchor_parks_the_tile_against_its_edges(self):
+        gap, size = clockface.EDGE_GAP, (144.0, 40.0)
+        left, right = 0 + gap, 1470 - 144 - gap
+        centre = (1470 - 144) / 2
+        top, bottom = 70 + 848 - 40 - gap, 70 + gap   # under the menu bar / above the Dock
+        expected = {
+            "top-centre": (centre, top), "top-right": (right, top),
+            "bottom-right": (right, bottom), "bottom-centre": (centre, bottom),
+            "bottom-left": (left, bottom), "top-left": (left, top),
+        }
+        for anchor, origin in expected.items():
+            assert clockface.anchored_origin(self.SCREEN, self.DOCKED, size, anchor) == origin, anchor
+
+    def test_every_anchor_keeps_the_whole_tile_in_the_visible_frame(self):
+        vx, vy, vw, vh = self.DOCKED
+        for size in ((72.0, 20.0), (144.0, 40.0), (863.0, 240.0)):
+            for anchor, _label in clockface.ANCHORS:
+                x, y = clockface.anchored_origin(self.SCREEN, self.DOCKED, size, anchor)
+                assert vx <= x and x + size[0] <= vx + vw, (anchor, size)
+                assert vy <= y and y + size[1] <= vy + vh, (anchor, size)
+
+    def test_a_dock_on_the_side_pushes_the_corners_in_but_not_the_centre(self):
+        side_dock = (70.0, 0.0, 1400.0, 918.0)  # Dock on the left
+        x, _y = clockface.anchored_origin(self.SCREEN, side_dock, (144.0, 40.0), "top-left")
+        assert x == 70 + clockface.EDGE_GAP
+        x, _y = clockface.anchored_origin(self.SCREEN, side_dock, (144.0, 40.0), "top-centre")
+        assert x == (1470 - 144) / 2  # still under the camera
+
+    def test_top_centre_is_the_top_centre_anchor(self):
+        assert clockface.top_centre_origin(self.SCREEN, self.VISIBLE, (144.0, 40.0)) == (
+            clockface.anchored_origin(self.SCREEN, self.VISIBLE, (144.0, 40.0), "top-centre")
+        )
 
     def test_on_screen_tile_is_reachable(self):
         assert clockface.is_reachable((600.0, 800.0, 144.0, 40.0), [self.SCREEN])

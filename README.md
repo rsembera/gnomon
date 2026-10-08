@@ -17,10 +17,13 @@ including into the menu bar beside the notch.
   the tile. The shape is locked, so the whole clock scales; 20 to 240 points
   tall.
 - **Menu:** right-click (or two-finger click) the tile — Session Alert,
-  24-Hour Time, Colours, Size (Small / Medium / Large), Move to Top Centre,
+  24-Hour Time, Colours, Size (Small / Medium / Large), Move To,
   Quit Gnomon.
 - **Colours:** three dark (White, Green or Amber digits on black) and three
   light (Black, Blue or Red digits on a pale tile).
+- **Move To:** Top Centre, Top Right, Bottom Right, Bottom Centre, Bottom
+  Left, Top Left, on whichever screen the tile is on. A tile parked this way
+  stays parked when it is resized; dragging it anywhere else lets go.
 - **Quit:** from that menu. There is no Dock icon and no menu bar; the tile
   is the whole interface.
 
@@ -88,9 +91,17 @@ whatever was in front when it closes.
 windows and the menu bar), joined to all Spaces and flagged as a full-screen
 auxiliary so it stays put when Meet goes full screen.
 
-**Opens under the camera.** First launch, and "Move to Top Centre", put the
-tile at the top centre of the built-in display, just below the menu bar. On a
-Mac with external monitors it picks the screen with the camera housing.
+**Opens under the camera.** First launch puts the tile at the top centre of
+the built-in display, just below the menu bar. On a Mac with external
+monitors it picks the screen with the camera housing.
+
+**Move To parks; dragging un-parks.** The six places are measured from the
+screen's visible frame, so a parked tile sits just under the menu bar, just
+above the Dock and clear of a Dock on the side; "centre" is the centre of the
+whole screen, where the camera is. The place is remembered only so that a
+resize can keep the tile there (a tile in a corner grows into the screen, not
+off it). There is no un-park command: the remembered place counts only while
+the tile is still exactly at it.
 
 **Digits that hold still.** System font with monospaced numerals, so the time
 does not shimmy as seconds change. The time is centred as it reads, so a

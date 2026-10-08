@@ -427,8 +427,47 @@ class Controller(NSObject):
         # many tiny increments, is not rounded away one step at a time.
         self._exact_height = clockface.clamp_height(height)
         size = clockface.tile_size(self._exact_height, self._aspect)
-        frame = clockface.resized_frame(_rect(self._panel.frame()), size)
+        anchor = self.current_anchor()
+        if anchor is not None:
+            # Parked with "Move To": stay parked, so a tile in a corner
+            # grows into the screen instead of off the edge of it.
+            frame = (*self.anchored_origin(anchor, size), *size)
+        else:
+            frame = clockface.resized_frame(_rect(self._panel.frame()), size)
         self._panel.setFrame_display_(NSMakeRect(*frame), True)
+
+    @objc.python_method
+    def anchored_origin(self, anchor: str, size):
+        """Where `anchor` is on the screen the tile is on now."""
+        screen = self._panel.screen() or NSScreen.screens()[0]
+        return clockface.anchored_origin(
+            _rect(screen.frame()), _rect(screen.visibleFrame()), size, anchor
+        )
+
+    @objc.python_method
+    def current_anchor(self) -> str | None:
+        """The "Move To" spot the tile is parked at, or None.
+
+        The remembered anchor only counts while the tile is still exactly
+        there. Once it has been dragged anywhere else the anchor lapses:
+        there is no separate "un-park" step to forget.
+        """
+        anchor = self._state.anchor
+        if anchor is None:
+            return None
+        x, y, width, height = _rect(self._panel.frame())
+        ax, ay = self.anchored_origin(anchor, (width, height))
+        if abs(x - ax) > 1 or abs(y - ay) > 1:
+            self._state.anchor = None
+            return None
+        return anchor
+
+    @objc.python_method
+    def move_to(self, anchor: str):
+        size = _rect(self._panel.frame())[2:]
+        self._state.anchor = anchor
+        self._panel.setFrameOrigin_(self.anchored_origin(anchor, size))
+        self.save_soon()
 
     @objc.python_method
     def scale_by(self, factor: float):
@@ -437,6 +476,7 @@ class Controller(NSObject):
     @objc.python_method
     def go_home(self):
         size = _rect(self._panel.frame())[2:]
+        self._state.anchor = "top-centre"
         self._panel.setFrameOrigin_(self.home_origin(size))
 
     def windowDidResize_(self, notification):
@@ -556,7 +596,12 @@ class Controller(NSObject):
             add(sizes, label, "choosePreset:", checked=current == round(height)).setTag_(index)
         add(menu, "Size", None).setSubmenu_(sizes)
 
-        add(menu, "Move to Top Centre", "moveToTopCentre:")
+        places = NSMenu.alloc().initWithTitle_("Move To")
+        places.setAutoenablesItems_(False)
+        parked = self.current_anchor()
+        for index, (anchor, label) in enumerate(clockface.ANCHORS):
+            add(places, label, "moveTo:", checked=anchor == parked).setTag_(index)
+        add(menu, "Move To", None).setSubmenu_(places)
         menu.addItem_(NSMenuItem.separatorItem())
         add(menu, f"Quit {APP_NAME}", "terminate:", target=NSApplication.sharedApplication())
         return menu
@@ -580,8 +625,8 @@ class Controller(NSObject):
     def choosePreset_(self, sender):
         self.set_height(clockface.SIZE_PRESETS[sender.tag()][1])
 
-    def moveToTopCentre_(self, sender):
-        self.go_home()
+    def moveTo_(self, sender):
+        self.move_to(clockface.ANCHORS[sender.tag()][0])
 
     # ------------------------------------------------------------------
     # Persistence
