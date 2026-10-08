@@ -53,13 +53,25 @@ def test_the_two_flashes_cannot_be_mistaken_for_each_other():
     assert contrast(schemes.WARNING_TILE, schemes.ALERT_TILE) >= 3.0  # amber is far lighter
 
 
+def test_three_dark_then_three_light():
+    assert [s.light for s in schemes.SCHEMES] == [False] * 3 + [True] * 3
+    for s in schemes.SCHEMES:
+        # "Light" and "dark" describe the tile: pale tile, deep digits, or the reverse.
+        assert (luminance(s.tile) > luminance(s.digits)) is s.light, s.key
+
+
 def test_schemes_differ_where_it_shows():
     # 1.1.0 had three dark schemes with near-identical off-white digits.
-    # No two schemes may now share a digit colour AND a tile colour family.
-    pairs = {(s.tile.lower(), s.digits.lower()) for s in schemes.SCHEMES}
-    assert len(pairs) == len(schemes.SCHEMES)
-    on_black = [s.digits.lower() for s in schemes.SCHEMES if s.tile == schemes.BLACK]
-    assert len(set(on_black)) == len(on_black) >= 4
+    # Within a group the tiles are (nearly) the same, so the digits must not be.
+    for light in (False, True):
+        digits = [s.digits.lower() for s in schemes.SCHEMES if s.light is light]
+        assert len(set(digits)) == len(digits) == 3
+
+
+def test_stored_keys_are_unchanged_by_the_relabelling():
+    # Ink and Paper are shown as White and Black; saved settings still say ink/paper.
+    assert schemes.get("ink").label == "White"
+    assert schemes.get("paper").label == "Black"
 
 
 def test_retired_names_resolve_to_a_current_scheme():

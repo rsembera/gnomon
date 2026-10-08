@@ -1,10 +1,14 @@
 """Colour schemes for the tile: pairs of colours, digits on a background.
 
-Ink and Paper are the Daybook/Palestra palette either way round (the
-original dark and light). The rest are the LED-clock pairs: one bright
-colour on black. The difference between schemes is carried by the DIGITS,
-because on a tile three centimetres wide that is the only difference that
-shows; 1.1.0's schemes varied the tint of a dark tile and all looked alike.
+Three dark and three light, each named for the colour of its DIGITS, since
+on a tile three centimetres wide that is the difference that shows.
+
+  Dark   White, Green, Amber     bright digits on a dark tile
+  Light  Black, Blue, Red        deep digits on a pale tile
+
+White and Black are the Daybook/Palestra ink and paper, either way round
+(the original dark and light). The light colours are the deep versions on
+purpose: a bright LED green or amber is unreadable on a pale background.
 
 Plain data, no AppKit: the view turns the hex strings into colours.
 """
@@ -13,6 +17,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+INK = "#1D1B17"
+PAPER = "#FAF7F0"
+RULE = "#DFD9CC"
 BLACK = "#0A0A0A"
 
 
@@ -24,40 +31,51 @@ class Scheme:
     digits: str       # numerals, #RRGGBB
     edge: str         # hairline border, #RRGGBB
     edge_alpha: float = 1.0
+    light: bool = False
 
 
-def _led(key: str, label: str, colour: str) -> Scheme:
+def _dark(key: str, label: str, colour: str) -> Scheme:
     """A bright colour on black, with a faint hairline of the same colour."""
     return Scheme(key, label, BLACK, colour, colour, 0.28)
 
 
+def _light(key: str, label: str, colour: str) -> Scheme:
+    """A deep colour on paper, with the portfolio's hairline rule."""
+    return Scheme(key, label, PAPER, colour, RULE, light=True)
+
+
+# Keys are what state.json stores and never change with the labels: "ink"
+# and "paper" are the schemes now shown as White and Black.
 SCHEMES: tuple[Scheme, ...] = (
-    Scheme("ink", "Ink", "#1D1B17", "#FAF7F0", "#FAF7F0", 0.16),
-    Scheme("paper", "Paper", "#FAF7F0", "#1D1B17", "#DFD9CC"),
-    _led("green", "Green", "#33FF33"),
-    _led("amber", "Amber", "#FFB000"),
-    _led("red", "Red", "#FF453A"),
-    # A light blue: pure blue on black is the one LED colour that cannot be
-    # read at a glance.
-    _led("blue", "Blue", "#4FC3F7"),
+    Scheme("ink", "White", INK, PAPER, PAPER, 0.16),
+    _dark("green", "Green", "#33FF33"),
+    _dark("amber", "Amber", "#FFB000"),
+    _light("paper", "Black", INK),
+    _light("navy", "Blue", "#24549A"),     # Daybook's accent
+    _light("crimson", "Red", "#B3261E"),
 )
 
 # Dark by default: the tile sits over Meet, which is dark, and a pale tile
 # beside the camera is a small lamp.
 DEFAULT = "ink"
 
-# Scheme names from 1.1.0 that no longer exist, and what each becomes.
+# Scheme names from earlier versions that no longer exist, and what each
+# becomes: the nearest scheme of the same lightness.
 RETIRED = {
+    # 1.1.0
     "terminal": "green",
     "slate": "paper",
     "witching-hour": "ink",
     "crimson-veil": "ink",
+    # 1.1.1 (a red and a light blue on black)
+    "red": "amber",
+    "blue": "ink",
 }
 
 # The two flashes are the same in every scheme, and mean what the colours
 # mean on a traffic light: amber for the warning, red for the end. Fixed
-# rather than derived from the scheme, so that the Red and Amber schemes
-# cannot make one flash look like the other.
+# rather than derived from the scheme, so that no scheme's own colours can
+# make one flash look like the other.
 WARNING_TILE = "#FFB000"
 WARNING_DIGITS = "#1D1B17"
 ALERT_TILE = "#B3261E"

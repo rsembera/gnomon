@@ -541,6 +541,8 @@ class Controller(NSObject):
         colours = NSMenu.alloc().initWithTitle_("Colours")
         colours.setAutoenablesItems_(False)
         for index, scheme in enumerate(schemes.SCHEMES):
+            if index and scheme.light != schemes.SCHEMES[index - 1].light:
+                colours.addItem_(NSMenuItem.separatorItem())  # dark above, light below
             add(
                 colours, scheme.label, "chooseScheme:",
                 checked=scheme.key == self._state.scheme,

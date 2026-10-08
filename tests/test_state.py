@@ -70,6 +70,8 @@ def test_a_1_1_0_scheme_name_is_carried_over(tmp_path):
     assert state.load(path).scheme == "green"
     path.write_text(json.dumps({"scheme": "crimson-veil"}), encoding="utf-8")
     assert state.load(path).scheme == "ink"
+    path.write_text(json.dumps({"scheme": "red"}), encoding="utf-8")  # 1.1.1's red on black
+    assert state.load(path).scheme == "amber"
 
 
 def test_non_finite_numbers_are_rejected(tmp_path):

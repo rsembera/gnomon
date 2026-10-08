@@ -267,7 +267,7 @@ class TestMenu:
         ]
         colours = menu.itemWithTitle_("Colours").submenu()
         assert [colours.itemAtIndex_(i).title() for i in range(colours.numberOfItems())] == [
-            scheme.label for scheme in schemes.SCHEMES
+            "White", "Green", "Amber", "", "Black", "Blue", "Red",
         ]
         sizes = menu.itemWithTitle_("Size").submenu()
         assert [sizes.itemAtIndex_(i).title() for i in range(sizes.numberOfItems())] == [
@@ -341,15 +341,15 @@ class TestColours:
     def test_choosing_from_the_menu_changes_and_ticks_the_scheme(self, controller):
         c = controller()
         colours = c.build_menu().itemWithTitle_("Colours").submenu()
-        c.chooseScheme_(colours.itemWithTitle_("Green"))
-        assert c._state.scheme == c._view._scheme == "green"
+        c.chooseScheme_(colours.itemWithTitle_("Blue"))  # below the separator
+        assert c._state.scheme == c._view._scheme == "navy"
         colours = c.build_menu().itemWithTitle_("Colours").submenu()
         ticked = [
             colours.itemAtIndex_(i).title()
             for i in range(colours.numberOfItems())
             if colours.itemAtIndex_(i).state() == AppKit.NSControlStateValueOn
         ]
-        assert ticked == ["Green"]
+        assert ticked == ["Blue"]
 
     def test_scheme_survives_a_relaunch(self, controller):
         first = controller()
