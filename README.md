@@ -40,8 +40,10 @@ of the tile while an alert is set.
 - To change or cancel one, open the same menu item (it shows what is set), or
   choose **Turn Off Session Alert**.
 
-An end time that has already passed today is taken to mean tomorrow, and the
-menu says so ("9:00 tomorrow"), so a mistyped time does not fail silently. An
+The menu shows what is set with a.m. or p.m. spelled out ("2:50 p.m., 5 min
+warning"), so a time entered in the wrong half of the day is visible. An end
+time that has already passed today is taken to mean tomorrow, and the menu
+says that too ("9:00 a.m. tomorrow"). An
 end flash that nobody clicks stops by itself after ten minutes. The form
 opens on the minute of the hour you used last (ten to the hour, the first
 time) and the warning you used last.

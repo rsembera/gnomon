@@ -129,12 +129,19 @@ def flash_on(now: float) -> bool:
 
 
 def describe(alarm: Alarm, now: float, twenty_four: bool) -> str:
-    """Menu wording, e.g. "2:50, 5 min warning" or "9:00 tomorrow, no warning"."""
+    """Menu wording, e.g. "2:50 p.m., 5 min warning" or "9:00 a.m. tomorrow,
+    no warning".
+
+    The tile itself never shows a.m./p.m., but here it is spelled out: this
+    line is where a time entered in the wrong half of the day gets caught.
+    (24-hour times cannot be ambiguous, so they are left bare.)
+    """
     end = datetime.fromtimestamp(alarm.end)
     if twenty_four:
         when = f"{end.hour:02d}:{end.minute:02d}"
     else:
-        when = f"{end.hour % 12 or 12}:{end.minute:02d}"
+        half = "a.m." if end.hour < 12 else "p.m."
+        when = f"{end.hour % 12 or 12}:{end.minute:02d} {half}"
     if end.date() != datetime.fromtimestamp(now).date():
         when += " tomorrow"
     warning = f"{alarm.warn_minutes} min warning" if alarm.warn_minutes else "no warning"

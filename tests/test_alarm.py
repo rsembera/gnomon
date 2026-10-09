@@ -117,13 +117,33 @@ class TestSequence:
 class TestDescribe:
     def test_twelve_and_twenty_four_hour(self):
         a = alarm.arm(END, 5, NOW)
-        assert alarm.describe(a, NOW, twenty_four=False) == "2:50, 5 min warning"
+        assert alarm.describe(a, NOW, twenty_four=False) == "2:50 p.m., 5 min warning"
         assert alarm.describe(a, NOW, twenty_four=True) == "14:50, 5 min warning"
 
     def test_no_warning(self):
-        assert alarm.describe(alarm.arm(END, 0, NOW), NOW, False) == "2:50, no warning"
+        assert alarm.describe(alarm.arm(END, 0, NOW), NOW, False) == "2:50 p.m., no warning"
+
+    def test_the_wrong_half_of_the_day_is_visible(self):
+        # At 2 p.m., meaning 2:50 p.m. but entering 2:50 AM: the menu must show it.
+        wrong = alarm.arm(alarm.next_occurrence(2, 50, NOW), 5, NOW)
+        assert alarm.describe(wrong, NOW, False) == "2:50 a.m. tomorrow, 5 min warning"
+        # In the morning, meaning 10:50 a.m. but entering 10:50 PM: same day, still caught.
+        morning = NOW - 4 * 3600  # 10:00
+        late = alarm.arm(alarm.next_occurrence(22, 50, morning), 5, morning)
+        assert alarm.describe(late, morning, False) == "10:50 p.m., 5 min warning"
+
+    def test_noon_and_midnight(self):
+        morning = NOW - 4 * 3600
+        noon = alarm.arm(alarm.next_occurrence(12, 0, morning), 0, morning)
+        assert alarm.describe(noon, morning, False) == "12:00 p.m., no warning"
+        midnight = alarm.arm(alarm.next_occurrence(0, 0, NOW), 0, NOW)
+        assert alarm.describe(midnight, NOW, False) == "12:00 a.m. tomorrow, no warning"
+
+    def test_24_hour_times_stay_bare(self):
+        a = alarm.arm(alarm.next_occurrence(2, 50, NOW), 5, NOW)
+        assert alarm.describe(a, NOW, True) == "02:50 tomorrow, 5 min warning"
 
     def test_tomorrow_is_said_out_loud(self):
         # A mistyped (already past) end time arms for tomorrow; the menu says so.
         a = alarm.arm(alarm.next_occurrence(9, 0, NOW), 5, NOW)
-        assert alarm.describe(a, NOW, False) == "9:00 tomorrow, 5 min warning"
+        assert alarm.describe(a, NOW, False) == "9:00 a.m. tomorrow, 5 min warning"
