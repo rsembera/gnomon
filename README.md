@@ -108,8 +108,8 @@ the tile is still exactly at it.
 **Digits that hold still.** System font with monospaced numerals, so the time
 does not shimmy as seconds change. The time is centred as it reads, so a
 one-digit hour in 12-hour mode sits in the middle of the tile (at the cost of
-one half-digit shift when 9:59:59 becomes 10:00:00). The colons are lifted
-to the middle of the digits (the font's own colon sits on the baseline).
+one half-digit shift when 9:59:59 becomes 10:00:00). The colons sit at the
+middle of the digits, which the system font does by itself between numerals.
 
 **A tick that does not drift.** The timer is re-armed from the wall clock
 after every tick instead of repeating every 1.0s, so lateness never

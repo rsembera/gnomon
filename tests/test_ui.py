@@ -354,6 +354,51 @@ class TestFace:
         scale = high / height
         assert (left + right) / 2 == pytest.approx(wide / 2, abs=1.5 * scale)
 
+    @pytest.mark.parametrize("text", ["10:41:25", "8:42:17", "00:00:00"])
+    @pytest.mark.parametrize("height", [28.0, 40.0, 60.0, 120.0])
+    def test_colons_are_vertically_centred_on_the_digits(self, controller, text, height):
+        # Regression: through 1.2.2 the colons were lifted twice (once by the
+        # font, once by hand) and ended up level with the top of the digits.
+        c = controller()
+        c.set_height(height)
+        c._view._text = text
+        rep = render(c._view)
+        wide, high = rep.pixelsWide(), rep.pixelsHigh()
+        tile, digits = rgb(schemes.get("ink").tile), rgb(schemes.get("ink").digits)
+
+        columns = {}
+        for x in range(wide):
+            lit = [
+                y for y in range(high)
+                if rep.colorAtX_y_(x, y).alphaComponent() > 0.9
+                and distance(pixel(rep, x, y), digits) < 0.35 * distance(pixel(rep, x, y), tile)
+            ]
+            if lit:
+                columns[x] = (min(lit), max(lit))
+        runs, run = [], []
+        for x in sorted(columns):
+            if run and x != run[-1] + 1:
+                runs.append(run)
+                run = []
+            run.append(x)
+        runs.append(run)
+
+        def extent(xs):
+            return min(columns[x][0] for x in xs), max(columns[x][1] for x in xs)
+
+        # A colon is a narrow run of ink; a digit is a wide one.
+        colons = [extent(xs) for xs in runs if len(xs) <= 0.12 * high]
+        numerals = [extent(xs) for xs in runs if len(xs) > 0.12 * high]
+        assert len(colons) == 2 and numerals
+        digit_top = min(top for top, _ in numerals)
+        digit_bottom = max(bottom for _, bottom in numerals)
+        scale = high / height
+        for top, bottom in colons:
+            assert (top + bottom) / 2 == pytest.approx((digit_top + digit_bottom) / 2, abs=scale)
+            # ... which also means clear space above AND below, not flush with the top.
+            assert top - digit_top == pytest.approx(digit_bottom - bottom, abs=2 * scale)
+            assert top - digit_top > 0.1 * (digit_bottom - digit_top)
+
     def test_shows_the_current_time(self, controller):
         import time
 

@@ -29,7 +29,6 @@ from AppKit import (
     NSApplicationActivationPolicyAccessory,
     NSApplicationDidChangeScreenParametersNotification,
     NSBackingStoreBuffered,
-    NSBaselineOffsetAttributeName,
     NSBezierPath,
     NSColor,
     NSControlStateValueOff,
@@ -168,13 +167,6 @@ class ClockView(NSView):
         )
         self._ref_width = reference.size().width
         self._ref_cap = font.capHeight()
-        # The system font's colon sits on the baseline, which is right in a
-        # sentence and looks dropped between numerals. Measure how far its
-        # middle is below the middle of the digits; drawRect_ lifts it by
-        # that much (as a fraction of font size).
-        colon = font.boundingRectForGlyph_(font.glyphWithName_("colon"))
-        colon_middle = colon.origin.y + colon.size.height / 2.0
-        self._colon_lift = (self._ref_cap / 2.0 - colon_middle) / REF_SIZE
         return self
 
     def isOpaque(self):
@@ -249,10 +241,10 @@ class ClockView(NSView):
             self._text,
             {NSFontAttributeName: font, NSForegroundColorAttributeName: digits},
         )
-        lift = self._colon_lift * font.pointSize()
-        for index, character in enumerate(self._text):
-            if character == ":":
-                text.addAttribute_value_range_(NSBaselineOffsetAttributeName, lift, (index, 1))
+        # No adjustment to the colons: the system font already raises a
+        # colon to the middle of the numerals when it sits between digits.
+        # (1.0 to 1.2.2 lifted it again by hand, which left it level with
+        # the TOP of the digits; tests/test_ui.py now measures it.)
         # Centre the time as it actually reads. In 12-hour mode a one-digit
         # hour is a digit narrower than the widest time the font was sized
         # for; centring it costs one half-digit shift when 9:59:59 becomes
