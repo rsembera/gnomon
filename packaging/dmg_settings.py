@@ -7,9 +7,9 @@ all of it):
     ./venv-release/bin/dmgbuild -s packaging/dmg_settings.py "Gnomon" dist/Gnomon-<version>.dmg
 
 GEOMETRY CONTRACT with scripts/make_dmg_background.py: window 540x320,
-icon size 100, app icon centred at (140, 125), Applications alias at
-(400, 125). The arrow in the background is drawn between those two slots:
-move one, move both. (Same layout as MailRepo's installer.)
+icon size 100, app icon centred at (140, 105), Applications alias at
+(400, 105). The arrow in the background is drawn between those two slots:
+move one, move both. (MailRepo's installer layout, 20 points higher.)
 """
 
 # dmgbuild exec()s this file without __file__, so paths are relative to
@@ -32,8 +32,8 @@ icon_size = 100
 text_size = 12
 
 icon_locations = {
-    "Gnomon.app": (140, 125),
-    "Applications": (400, 125),
+    "Gnomon.app": (140, 105),
+    "Applications": (400, 105),
 }
 
 # Show nothing else: no toolbar, no sidebar, no status bar.

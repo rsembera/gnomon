@@ -1,11 +1,13 @@
 """Draw the installer window's background (packaging/dmg_background.tiff).
 
 GEOMETRY CONTRACT with packaging/dmg_settings.py (the same one MailRepo's
-installer uses): window 540x320, icon size 100, app icon centred at
-(140, 125), Applications alias at (400, 125), both measured from the TOP
-left as Finder does. The arrow is drawn between those two slots: move one,
-move both. Finder's own chrome eats roughly the bottom 60 points of the
-window, so nothing readable sits lower than y = 260.
+installer uses, 20 points higher): window 540x320, icon size 100, app icon
+centred at (140, 105), Applications alias at (400, 105), both measured from
+the TOP left as Finder does. The arrow is drawn between those two slots:
+move one, move both. Finder's own chrome eats roughly the bottom 60 points
+of the window, more when the reader has the path bar switched on, so
+nothing readable sits lower than y = 240. (1.5.x had everything 20 points
+lower: an empty band on top and the hint line crowding the path bar.)
 
 Drawn with AppKit at 1x and 2x and packed into one multi-resolution TIFF
 with tiffutil (ships with macOS), so it is sharp on a Retina screen.
@@ -42,7 +44,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "packaging" / "dmg_background.tiff"
 
 WIDTH, HEIGHT = 540, 320
-SLOT_Y = 125            # from the top, as in dmg_settings.py
+SLOT_Y = 105            # from the top, as in dmg_settings.py
 APP_X, APPLICATIONS_X = 140, 400
 
 CAPTION = "Drag Gnomon to Applications to install"
@@ -100,8 +102,8 @@ def draw() -> None:
             },
         )
 
-    line(CAPTION, 228, 16, NSFontWeightSemibold, INK)
-    line(HINT, 252, 12, NSFontWeightRegular, MUTED)
+    line(CAPTION, 208, 16, NSFontWeightSemibold, INK)
+    line(HINT, 232, 12, NSFontWeightRegular, MUTED)
 
 
 def render(scale: int) -> bytes:
