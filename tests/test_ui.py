@@ -717,6 +717,7 @@ class TestAlertForm:
 
 
 FACES = [face for face, _label in fonts.FACES]
+FONT_FACES = [face for face in FACES if face != fonts.LED]  # the LED face is drawn, not a font
 
 
 def ink_runs(view, scheme_key="ink"):
@@ -752,7 +753,7 @@ class TestFonts:
         c = controller()
         faces = c.build_menu().itemWithTitle_("Font").submenu()
         assert [faces.itemAtIndex_(i).title() for i in range(faces.numberOfItems())] == [
-            "Standard", "Rounded", "Serif", "Mono", "DIN", "Typewriter",
+            "Standard", "Serif", "Mono", "DIN", "Typewriter", "LED",
         ]
         c.chooseFace_(faces.itemWithTitle_("DIN"))
         assert c._state.font == c._view._face == "din"
@@ -770,10 +771,10 @@ class TestFonts:
         from ui.app import _digit_font
 
         controller()
-        names = {face: _digit_font(40.0, face).fontName() for face in FACES}
-        assert len(set(names.values())) == len(FACES), names
+        names = {face: _digit_font(40.0, face).fontName() for face in FONT_FACES}
+        assert len(set(names.values())) == len(FONT_FACES), names
 
-    @pytest.mark.parametrize("face", FACES)
+    @pytest.mark.parametrize("face", FONT_FACES)
     def test_numerals_are_all_the_same_width(self, controller, face):
         # Otherwise the time shimmies sideways as the seconds change.
         from ui.app import _digit_font
@@ -877,6 +878,12 @@ class TestFonts:
         path.write_text('{"font": "comic-sans"}', encoding="utf-8")
         assert controller()._view._face == "standard"
 
+    def test_the_retired_rounded_face_opens_as_standard(self, controller):
+        path = state.data_dir() / state.STATE_FILE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('{"font": "rounded"}', encoding="utf-8")
+        assert controller()._view._face == "standard"
+
     def test_standard_face_gets_no_colon_lift(self, controller):
         # The regression from 1.0: lifting a colon the font had already lifted.
         from ui.app import _colon_lift
@@ -884,3 +891,71 @@ class TestFonts:
         controller()
         assert _colon_lift("standard") == 0.0
         assert _colon_lift("din") > 0.1          # sits on the baseline: needs raising
+
+
+class TestLedFace:
+    def led(self, controller, text, height=80.0, scheme="green"):
+        c = controller()
+        c.set_scheme(scheme)
+        c.set_face("led")
+        c.set_height(height)
+        c._view._text = text
+        return c
+
+    def test_digits_are_half_the_tile_height_like_every_other_face(self, controller):
+        c = self.led(controller, "88:88:88", scheme="ink")
+        _left, top, _right, bottom, _wide, high = digit_pixel_box(c._view)
+        assert (bottom - top + 1) / high == pytest.approx(clockface.CAP_FRACTION, abs=0.03)
+
+    def test_unlit_segments_show_faintly(self, controller):
+        # In a 1, the top bar is unlit: visible, but nearer the tile than the digits.
+        from core import sevenseg
+
+        c = self.led(controller, "1")
+        rep = render(c._view)
+        scale = rep.pixelsHigh() / 80.0
+        scheme = schemes.get("green")
+        tile, digits = rgb(scheme.tile), rgb(scheme.digits)
+        digit_height = 80.0 * clockface.CAP_FRACTION
+        # Middle of segment "a": mid-width of the digit, just under its top
+        # (nudged right for the lean at that height).
+        x = rep.pixelsWide() / 2 + sevenseg.SLANT * 0.44 * digit_height * scale
+        y = rep.pixelsHigh() / 2 - (0.5 - sevenseg.THICKNESS / 2) * digit_height * scale
+        ghost = pixel(rep, round(x), round(y))
+        assert distance(ghost, tile) > 0.03                      # it is there
+        assert distance(ghost, tile) < 0.25 * distance(digits, tile)   # but only just
+        # ... and a lit segment of the same 1 is the full colour.
+        lit_x = rep.pixelsWide() / 2 + (sevenseg.DIGIT_WIDTH / 2 - sevenseg.THICKNESS / 2
+                                        + sevenseg.SLANT * 0.25) * digit_height * scale
+        lit_y = rep.pixelsHigh() / 2 - 0.25 * digit_height * scale
+        assert distance(pixel(rep, round(lit_x), round(lit_y)), digits) < 0.05
+
+    def test_an_eight_has_nothing_unlit(self, controller):
+        # Every pixel is either tile or full-strength digit (bar anti-aliased edges).
+        c = self.led(controller, "8", height=120.0)
+        rep = render(c._view)
+        scheme = schemes.get("green")
+        tile, digits = rgb(scheme.tile), rgb(scheme.digits)
+        span = distance(tile, digits)
+        middling = 0
+        inner = range(rep.pixelsHigh() // 4, 3 * rep.pixelsHigh() // 4)
+        for y in inner:
+            for x in range(rep.pixelsWide() // 3, 2 * rep.pixelsWide() // 3):
+                d = distance(pixel(rep, x, y), tile)
+                if 0.05 * span < d < 0.2 * span:
+                    middling += 1
+        assert middling < 0.01 * len(inner) * (rep.pixelsWide() // 3)
+
+    @pytest.mark.parametrize("scheme", [scheme.key for scheme in schemes.SCHEMES])
+    def test_led_face_works_in_every_colour_scheme(self, controller, scheme):
+        c = self.led(controller, clockface.WIDEST, height=40.0, scheme=scheme)
+        left, top, right, bottom, wide, high = digit_pixel_box(c._view, scheme)
+        assert (left + right) / 2 == pytest.approx(wide / 2, abs=3)
+        assert (top + bottom) / 2 == pytest.approx(high / 2, abs=3)
+
+    def test_led_face_flashes_like_any_other(self, controller):
+        c = controller()
+        c.set_face("led")
+        c.set_alarm(14, 50, 5, now=NOW)
+        c.refresh(NOW + 45 * 60)
+        assert distance(tile_colour(c._view), rgb(schemes.WARNING_TILE)) < 0.03

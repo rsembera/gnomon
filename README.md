@@ -21,8 +21,8 @@ including into the menu bar beside the notch.
   Quit Gnomon.
 - **Colours:** three dark (White, Green or Amber digits on black) and three
   light (Black, Blue or Red digits on a pale tile).
-- **Font:** Standard, Rounded, Serif, Mono, DIN, Typewriter. The tile keeps
-  its height and changes width to suit the face.
+- **Font:** Standard, Serif, Mono, DIN, Typewriter, LED. The tile keeps its
+  height and changes width to suit the face.
 - **Move To:** Top Centre, Top Right, Bottom Right, Bottom Centre, Bottom
   Left, Top Left, on whichever screen the tile is on. A tile parked this way
   stays parked when it is resized; dragging it anywhere else lets go.
@@ -112,9 +112,12 @@ so the time does not shimmy as seconds change. The time is centred as it
 reads, so a one-digit hour in 12-hour mode sits in the middle of the tile (at
 the cost of one half-digit shift when 9:59:59 becomes 10:00:00).
 
-**Six faces, all already on the Mac.** Standard, Rounded, Serif (New York)
-and Mono (SF Mono) are the system's own; DIN Alternate and American
-Typewriter ship with macOS. Nothing is bundled, so there is nothing to
+**Five fonts already on the Mac, and one that is drawn.** Standard, Serif
+(New York) and Mono (SF Mono) are the system's own; DIN Alternate and
+American Typewriter ship with macOS. The LED face is not a font: macOS has no
+seven-segment typeface, so its digits are drawn, seven hexagons apiece
+(`core/sevenseg.py`), with the segments a digit is not using shown faintly as
+on a real display. Either way nothing is bundled, so there is nothing to
 license. The tile's proportions come from the face's own measurements, which
 is why a monospaced face makes a wider tile and DIN a narrower one.
 
@@ -123,7 +126,7 @@ raise a colon by themselves when it sits between numerals; the others leave
 it on the baseline. The font's metrics do not say which (1.0 trusted them
 and ended up with colons level with the top of the digits), so each face's
 colon is drawn once off-screen and raised by however far it actually fell
-short.
+short. (The LED face's colon dots are symmetric by construction.)
 
 **A tick that does not drift.** The timer is re-armed from the wall clock
 after every tick instead of repeating every 1.0s, so lateness never
@@ -175,6 +178,7 @@ gnomon/
     alarm.py             # Session alert: when to flash, what a click does — no AppKit
     schemes.py           # Colour schemes (plain data)
     fonts.py             # Typefaces (plain data)
+    sevenseg.py          # Seven-segment geometry for the LED face — no AppKit
     state.py             # Remembered settings: load (forgiving) / save (atomic)
   ui/
     app.py               # The panel, the view that draws it, the menu, the timer

@@ -38,7 +38,6 @@ from AppKit import (
     NSControlStateValueOn,
     NSFont,
     NSFontAttributeName,
-    NSFontDescriptorSystemDesignRounded,
     NSFontDescriptorSystemDesignSerif,
     NSFontFeatureSelectorIdentifierKey,
     NSFontFeatureSettingsAttribute,
@@ -74,7 +73,7 @@ from Foundation import (
 )
 from PyObjCTools import AppHelper
 
-from core import alarm, clockface, fonts, schemes, state
+from core import alarm, clockface, fonts, schemes, sevenseg, state
 from ui import alert_form
 
 APP_NAME = "Gnomon"
@@ -150,19 +149,17 @@ def _digit_font(size: float, face: str = fonts.DEFAULT):
     Equal-width DIGITS, not necessarily a monospaced face: every numeral
     takes the same space, so the time does not shimmy as the seconds
     change. A face that cannot be found falls back to the standard one
-    rather than leaving the tile blank.
+    rather than leaving the tile blank. (The LED face has no font; its
+    digits are drawn by ClockView.draw_segments.)
     """
     font = None
     if face == "mono":
         font = NSFont.monospacedSystemFontOfSize_weight_(size, NSFontWeightMedium)
-    elif face in ("rounded", "serif"):
-        design = (
-            NSFontDescriptorSystemDesignRounded
-            if face == "rounded"
-            else NSFontDescriptorSystemDesignSerif
-        )
+    elif face == "serif":
         base = NSFont.systemFontOfSize_weight_(size, NSFontWeightMedium)
-        descriptor = base.fontDescriptor().fontDescriptorWithDesign_(design)
+        descriptor = base.fontDescriptor().fontDescriptorWithDesign_(
+            NSFontDescriptorSystemDesignSerif
+        )
         if descriptor is not None:
             font = NSFont.fontWithDescriptor_size_(descriptor, size)
     elif face in _NAMED_FACES:
@@ -171,6 +168,9 @@ def _digit_font(size: float, face: str = fonts.DEFAULT):
         return NSFont.monospacedDigitSystemFontOfSize_weight_(size, NSFontWeightMedium)
     return _tabular(font)
 
+
+# How strongly the LED face shows the segments a digit is not using.
+UNLIT_ALPHA = 0.10
 
 _COLON_LIFT_CACHE: dict[str, float] = {}
 
@@ -275,6 +275,14 @@ class ClockView(NSView):
     def set_face(self, face: str):
         """Switch typeface and take its measurements."""
         self._face = face if fonts.is_known(face) else fonts.DEFAULT
+        self.setNeedsDisplay_(True)
+        if self._face == fonts.LED:
+            # Drawn, not set: the proportions come straight from the
+            # geometry (measured at a digit height of 1).
+            self._ref_width = sevenseg.text_width(clockface.WIDEST, 1.0)
+            self._ref_cap = 1.0
+            self._colon_lift = 0.0
+            return
         font = _digit_font(REF_SIZE, self._face)
         reference = NSMutableAttributedString.alloc().initWithString_attributes_(
             clockface.WIDEST, {NSFontAttributeName: font}
@@ -282,7 +290,6 @@ class ClockView(NSView):
         self._ref_width = reference.size().width
         self._ref_cap = font.capHeight()
         self._colon_lift = _colon_lift(self._face)
-        self.setNeedsDisplay_(True)
 
     def isOpaque(self):
         return False
@@ -334,23 +341,11 @@ class ClockView(NSView):
             cap = font.capHeight()
         return font, box_width
 
-    def drawRect_(self, dirty):
-        bounds = self.bounds()
-        width, height = bounds.size.width, bounds.size.height
-        tile, digits, edge = _palette(self._scheme, self._flash)
-
-        radius = min(height * 0.24, 16.0)
-        outline = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-            NSInsetRect(bounds, 0.5, 0.5), radius, radius
-        )
-        tile.setFill()
-        outline.fill()
-        edge.setStroke()
-        outline.setLineWidth_(1.0)
-        outline.stroke()
-
+    @objc.python_method
+    def draw_digits(self, width, height, digits):
+        """The time, set in the chosen font."""
         font, _box_width = self.fitted_font((width, height))
-        if font is None or not self._text:
+        if font is None:
             return
         text = NSMutableAttributedString.alloc().initWithString_attributes_(
             self._text,
@@ -375,6 +370,49 @@ class ClockView(NSView):
         # which carries descender space digits never use.
         baseline = (height - font.capHeight()) / 2.0
         text.drawAtPoint_((x, baseline + font.descender()))
+
+    @objc.python_method
+    def draw_segments(self, width, height, digits):
+        """The time, as seven-segment digits (the LED face)."""
+        # Same rule as for a font: digits half the tile's height, unless
+        # the width says smaller. With a reference height of 1 the scale
+        # factor IS the digit height.
+        digit_height = clockface.digit_scale((width, height), self._ref_width, self._ref_cap)
+        if digit_height <= 0:
+            return
+        x = (width - sevenseg.text_width(self._text, digit_height)) / 2.0
+        y = (height - digit_height) / 2.0
+        lit, unlit = sevenseg.polygons(self._text, digit_height)
+        for shapes, alpha in ((unlit, UNLIT_ALPHA), (lit, 1.0)):
+            path = NSBezierPath.bezierPath()
+            for shape in shapes:
+                path.moveToPoint_((x + shape[0][0], y + shape[0][1]))
+                for px, py in shape[1:]:
+                    path.lineToPoint_((x + px, y + py))
+                path.closePath()
+            digits.colorWithAlphaComponent_(alpha).setFill()
+            path.fill()
+
+    def drawRect_(self, dirty):
+        bounds = self.bounds()
+        width, height = bounds.size.width, bounds.size.height
+        tile, digits, edge = _palette(self._scheme, self._flash)
+
+        radius = min(height * 0.24, 16.0)
+        outline = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
+            NSInsetRect(bounds, 0.5, 0.5), radius, radius
+        )
+        tile.setFill()
+        outline.fill()
+        edge.setStroke()
+        outline.setLineWidth_(1.0)
+        outline.stroke()
+
+        if self._text:
+            if self._face == fonts.LED:
+                self.draw_segments(width, height, digits)
+            else:
+                self.draw_digits(width, height, digits)
 
         if self._armed and self._flash is None:
             # A session alert is set: a dot in the left margin, so it can be
