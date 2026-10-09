@@ -91,6 +91,26 @@ declares.
 
 **Requirements for the released app: Apple Silicon, macOS 12 or newer.**
 
+Either build is ad-hoc signed, which is all an app needs on the machine that
+built it.
+
+## Releasing
+
+```sh
+./scripts/build_release.sh      # dist/Gnomon.app
+./scripts/release.sh            # dist/Gnomon-<version>.dmg
+```
+
+`release.sh` signs the app with the Developer ID certificate (every library
+first, then the bundle, hardened runtime), has Apple notarize it, staples the
+ticket, builds the disk image with `dmgbuild` (`packaging/dmg_settings.py`,
+background drawn by `scripts/make_dmg_background.py`), then signs, notarizes
+and staples the image too. It stops if Apple does not answer "Accepted" or if
+Gatekeeper would refuse the result, and finishes by printing the image's
+SHA-256. It is the EdgeCase/MailRepo recipe written down as a script; the
+certificate and notarization profile it expects are described at the top of
+the file. The version number comes from `core/__init__.py`.
+
 ## Design decisions
 
 **Native AppKit, not Flask + pywebview.** Every other app in the portfolio is
@@ -202,6 +222,12 @@ gnomon/
     alert_form.py        # The session-alert form (the only place that takes typing)
   scripts/
     make_icon.py         # Draws assets/icon.icns with AppKit + iconutil
+    make_dmg_background.py  # Draws packaging/dmg_background.tiff
+    build_release.sh     # The build other people can run (python.org Python)
+    release.sh           # Sign, notarize, package: dist/Gnomon-<version>.dmg
+  packaging/
+    dmg_settings.py      # Installer window layout for dmgbuild
+    dmg_background.tiff
   assets/
     icon.icns
   setup_app.py           # py2app build

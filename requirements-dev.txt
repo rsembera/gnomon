@@ -1,7 +1,8 @@
 -r requirements.txt
 
-# Packaging (macOS .app)
+# Packaging (macOS .app and .dmg)
 py2app>=0.28
+dmgbuild>=1.6
 
 # Tests and lint
 pytest>=9.0
