@@ -10,6 +10,23 @@ including into the menu bar beside the notch.
 
 (A gnomon is the part of a sundial that casts the shadow.)
 
+## Install
+
+Requires a Mac with Apple Silicon (M1 or later) and macOS 12 or newer.
+
+1. Download `Gnomon-1.5.0.dmg` from the
+   [Releases page](https://github.com/rsembera/gnomon/releases).
+2. Open it and drag Gnomon to Applications.
+3. Open Gnomon. The clock appears at the top centre of the screen, under the
+   camera. Drag it wherever you like; right-click it for everything else,
+   including Quit.
+
+The app is signed and notarized by Apple, so it opens without a security
+warning. It makes no network connections and collects nothing.
+
+SHA-256 of `Gnomon-1.5.0.dmg`:
+`19130f4ed2c91d51e5d205f337a382cd601d275b1a29dacf81289ec4a3be1ae3`
+
 ## Using it
 
 - **Move:** drag it, anywhere on the tile.
@@ -18,7 +35,7 @@ including into the menu bar beside the notch.
   tall.
 - **Menu:** right-click (or two-finger click) the tile — Session Alert,
   24-Hour Time, Colours, Font, Size (Small / Medium / Large), Move To,
-  Quit Gnomon.
+  About Gnomon, Quit Gnomon.
 - **Colours:** three dark (White, Green or Amber digits on black) and three
   light (Black, Blue or Red digits on a pale tile).
 - **Font:** Standard, Serif, Mono, DIN, Typewriter, LED. The tile keeps its
@@ -45,15 +62,13 @@ of the tile while an alert is set.
 The menu shows what is set with a.m. or p.m. spelled out ("2:50 p.m., 5 min
 warning"), so a time entered in the wrong half of the day is visible. An end
 time that has already passed today is taken to mean tomorrow, and the menu
-says that too ("9:00 a.m. tomorrow"). An
-end flash that nobody clicks stops by itself after ten minutes. The form
-opens on the minute of the hour you used last (ten to the hour, the first
-time) and the warning you used last.
+says that too ("9:00 a.m. tomorrow"). An end flash that nobody clicks stops
+by itself after ten minutes. The form opens on the minute of the hour you
+used last (ten to the hour, the first time) and the warning you used last.
 
-Position, size, colours and any alert that is set are remembered between
-launches. If the
-remembered spot is on a monitor that is no longer attached, the clock opens
-at top centre instead.
+Position, size, colours, font and any alert that is set are remembered
+between launches. If the remembered spot is on a monitor that is no longer
+attached, the clock opens at top centre instead.
 
 ## Running it
 
@@ -177,10 +192,10 @@ menu; either way the tile shows digits only.
 White and Black are the Daybook/Palestra ink and paper either way round.
 Green and Amber are LED-clock colours on black; Blue and Red on the pale tile
 are the most saturated versions that stay readable there (an LED green or
-amber would wash out on a pale background altogether). (1.1.0 borrowed Libram's themes, which vary the tint of a dark
-background: on a tile this size they were indistinguishable.) White is the
-default because the tile sits over Meet, which is dark, and a pale tile
-beside the camera is a small lamp.
+amber would wash out on a pale background altogether). (1.1.0 borrowed
+Libram's themes, which vary the tint of a dark background: on a tile this
+size they were indistinguishable.) White is the default because the tile sits
+over Meet, which is dark, and a pale tile beside the camera is a small lamp.
 
 **The alert is arithmetic, not a second timer.** Once a second the tick asks
 one question — given the end time, the warning, and what has been clicked,
@@ -200,10 +215,10 @@ the same mechanism a title bar uses.
 ## Data
 
 One file: `~/Library/Application Support/Gnomon/state.json` (position, size,
-colour scheme, typeface, hour mode, the alert that is set, and the last-used warning
-and end minute). Written atomically, a moment after the tile stops
-moving and again on quit. Delete it to reset everything.
-`GNOMON_DATA_DIR` overrides the folder.
+Move To place, colour scheme, typeface, hour mode, the alert that is set, the
+last-used warning and end minute, and whether the first-launch hint has been
+shown). Written atomically, a moment after the tile stops moving and again on
+quit. Delete it to reset everything. `GNOMON_DATA_DIR` overrides the folder.
 
 ## Architecture
 
@@ -220,6 +235,7 @@ gnomon/
   ui/
     app.py               # The panel, the view that draws it, the menu, the timer
     alert_form.py        # The session-alert form (the only place that takes typing)
+    about.py             # First-launch hint and the About panel
   scripts/
     make_icon.py         # Draws assets/icon.icns with AppKit + iconutil
     make_dmg_background.py  # Draws packaging/dmg_background.tiff
@@ -243,17 +259,18 @@ gnomon/
 
 `core/` is tested directly. `tests/test_ui.py` builds the real panel without
 showing it and renders the face off-screen: it checks that the digits fit and
-are centred at every size, that every colour scheme paints what it says, that
-the menu items act, that presets and pinch resize about the top centre, and
-that position, size, colours and a set alert survive a relaunch. The alert is
-walked through its whole sequence against a fixed clock, including the
-colours actually painted during each flash.
+are centred at every size and in every face, that the colons sit at the
+middle of the digits, that every colour scheme paints what it says, that the
+menu items act, that presets and pinch resize about the top centre, that each
+Move To place lands on screen, and that position, size, colours, font and a
+set alert survive a relaunch. The alert is walked through its whole sequence
+against a fixed clock, including the colours actually painted during each
+flash.
 
 What the tests cannot reach is the window server's half of the gestures — the
 mouse drag itself and the edge resize — or the alert form actually on screen
 (it is built and inspected, never run). The tests pin the configuration those
 depend on, but the gestures themselves are only ever checked by hand.
-
 
 ## Privacy
 
