@@ -596,6 +596,23 @@ class TestSessionAlert:
         c._view._text = "12:00:00"
         assert distance(margin_pixel(c), tile) > 0.2
 
+    @pytest.mark.parametrize("height", [20.0, 28.0, 40.0, 60.0, 120.0])
+    def test_the_dot_is_solid_and_clear_of_the_digits(self, controller, height):
+        c = controller()
+        c.set_height(height)
+        c.set_alarm(14, 50, 5, now=NOW)
+        c._view._text = clockface.WIDEST  # 24-hour times fill the box: the tightest case
+        rep = render(c._view)
+        scale = rep.pixelsHigh() / height
+        mid = rep.pixelsHigh() // 2
+        ink = schemes.get("ink")
+        # Solid: the middle of the dot is the full digit colour, not a tint of it.
+        assert distance(pixel(rep, round(height * 0.14 * scale), mid), rgb(ink.digits)) < 0.03
+        # Clear: a strip of bare tile, top to bottom, between the dot and the first digit.
+        gap = round(height * 0.25 * scale)
+        for y in range(rep.pixelsHigh() // 4, 3 * rep.pixelsHigh() // 4):
+            assert distance(pixel(rep, gap, y), rgb(ink.tile)) < 0.03, (height, y)
+
     def test_alert_and_its_settings_survive_a_relaunch(self, controller):
         first = controller()
         end = alarm.next_occurrence(*time.localtime(time.time() + 3000)[3:5], time.time())

@@ -264,10 +264,13 @@ class ClockView(NSView):
         text.drawAtPoint_((x, baseline + font.descender()))
 
         if self._armed and self._flash is None:
-            # A session alert is set: a small dot in the left margin, so it
-            # can be checked at a glance without opening the menu.
-            r = max(1.25, height * 0.04)
-            digits.colorWithAlphaComponent_(0.55).setFill()
+            # A session alert is set: a dot in the left margin, so it can be
+            # checked at a glance without opening the menu. Solid and about
+            # a seventh of the tile's height across; the first version was
+            # smaller and half-transparent, and too easy to miss mid-session.
+            # It still stops short of the digits (margin is 0.28 of height).
+            r = max(2.0, height * 0.07)
+            digits.setFill()
             NSBezierPath.bezierPathWithOvalInRect_(
                 NSMakeRect(height * 0.14 - r, height / 2.0 - r, 2 * r, 2 * r)
             ).fill()
