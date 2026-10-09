@@ -15,9 +15,10 @@ every first-party package on disk is declared here.
 
 from setuptools import setup
 
+from core import __version__ as APP_VERSION  # written down once, in core/__init__.py
+
 APP = ['main.py']
 APP_NAME = 'Gnomon'
-APP_VERSION = '1.4.0'
 
 # Third-party runtime dependencies: PyObjC and nothing else.
 THIRD_PARTY_PACKAGES = [
@@ -41,6 +42,7 @@ OPTIONS = {
         'CFBundleIdentifier': 'ca.lightinextension.gnomon',
         'CFBundleVersion': APP_VERSION,
         'CFBundleShortVersionString': APP_VERSION,
+        'NSHumanReadableCopyright': 'Copyright \u00a9 2026 Richard Sembera. GNU AGPL v3.',
         'NSHighResolutionCapable': True,
         # 12.0: NSScreen.safeAreaInsets, used to find the display with the camera.
         'LSMinimumSystemVersion': '12.0',

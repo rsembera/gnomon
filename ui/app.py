@@ -74,7 +74,7 @@ from Foundation import (
 from PyObjCTools import AppHelper
 
 from core import alarm, clockface, fonts, schemes, sevenseg, state
-from ui import alert_form
+from ui import about, alert_form
 
 APP_NAME = "Gnomon"
 
@@ -769,6 +769,7 @@ class Controller(NSObject):
             add(places, label, "moveTo:", checked=anchor == parked).setTag_(index)
         add(menu, "Move To", None).setSubmenu_(places)
         menu.addItem_(NSMenuItem.separatorItem())
+        add(menu, f"About {APP_NAME}", "aboutGnomon:")
         add(menu, f"Quit {APP_NAME}", "terminate:", target=NSApplication.sharedApplication())
         return menu
 
@@ -843,9 +844,23 @@ class Controller(NSObject):
     # Application lifecycle
     # ------------------------------------------------------------------
 
+    def aboutGnomon_(self, sender):
+        about.show_about()
+
+    def showWelcome_(self, _unused):
+        # Marked as shown BEFORE it goes up: if anything interrupts it, the
+        # worse outcome is a hint seen for half a second, not one that
+        # reappears at every launch.
+        self._state.welcomed = True
+        self.save_now()
+        about.show_welcome()
+
     def applicationDidFinishLaunching_(self, notification):
         self.build()
         self.schedule_tick()
+        if not self._state.welcomed:
+            # A moment later, so the clock is on screen for the hint to point at.
+            self.performSelector_withObject_afterDelay_("showWelcome:", None, 0.5)
         NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
             self, "screensChanged:", NSApplicationDidChangeScreenParametersNotification, None
         )

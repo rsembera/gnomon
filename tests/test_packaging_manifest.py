@@ -36,3 +36,18 @@ def test_entry_point_and_icon_exist():
 def test_bundle_is_an_agent_app():
     # No Dock icon: the clock itself is the interface.
     assert setup_app.OPTIONS["plist"]["LSUIElement"] is True
+
+
+def test_version_is_written_down_once():
+    import re
+
+    from core import __version__
+
+    assert setup_app.APP_VERSION == __version__
+    assert setup_app.OPTIONS["plist"]["CFBundleShortVersionString"] == __version__
+    assert re.fullmatch(r"\d+\.\d+\.\d+", __version__)
+
+
+def test_licence_file_is_the_agpl():
+    text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+    assert "GNU AFFERO GENERAL PUBLIC LICENSE" in text and "Version 3" in text

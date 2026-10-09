@@ -99,6 +99,31 @@ def build_alert(end: float, warn_minutes: int, armed: bool):
     return alert, picker, popup
 
 
+def run_in_front(alert):
+    """Run `alert` as the frontmost thing on screen and return its answer.
+
+    Gnomon is normally never the active app, so it has to step forward to be
+    typed into or clicked through, and step back afterwards: whichever app
+    was in front before (Meet, in practice) is brought back. The alert gets
+    the tile's own reach, so it also appears over a full-screen call instead
+    of on some other Space.
+    """
+    window = alert.window()
+    window.setLevel_(NSStatusWindowLevel)
+    window.setCollectionBehavior_(
+        NSWindowCollectionBehaviorCanJoinAllSpaces
+        | NSWindowCollectionBehaviorFullScreenAuxiliary
+    )
+    app = NSApplication.sharedApplication()
+    previous = NSWorkspace.sharedWorkspace().frontmostApplication()
+    app.activateIgnoringOtherApps_(True)
+    try:
+        return alert.runModal()
+    finally:
+        if previous is not None and previous.processIdentifier() != os.getpid():
+            previous.activateWithOptions_(0)
+
+
 def ask(end: float, warn_minutes: int, armed: bool):
     """Show the form and wait for an answer.
 
@@ -108,15 +133,7 @@ def ask(end: float, warn_minutes: int, armed: bool):
     """
     alert, picker, popup = build_alert(end, warn_minutes, armed)
 
-    app = NSApplication.sharedApplication()
-    previous = NSWorkspace.sharedWorkspace().frontmostApplication()
-    app.activateIgnoringOtherApps_(True)
-    try:
-        response = alert.runModal()
-    finally:
-        if previous is not None and previous.processIdentifier() != os.getpid():
-            previous.activateWithOptions_(0)
-
+    response = run_in_front(alert)
     if response == NSAlertFirstButtonReturn:
         return (SET, *read_form(picker, popup))
     if armed and response == NSAlertThirdButtonReturn:

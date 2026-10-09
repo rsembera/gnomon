@@ -11,6 +11,7 @@ def test_missing_file_gives_defaults(tmp_path):
     assert loaded == state.State()
     assert loaded.x is None and loaded.height == DEFAULT_HEIGHT and loaded.scheme == "ink"
     assert loaded.alarm_end is None and loaded.warn_minutes == 5 and loaded.end_minute == 50
+    assert loaded.welcomed is False   # a new install is due the first-launch hint
 
 
 def test_round_trip(tmp_path):
@@ -19,6 +20,7 @@ def test_round_trip(tmp_path):
         x=663.0, y=872.0, height=28.0, anchor="bottom-left", scheme="amber", font="din",
         twenty_four=True,
         alarm_end=1_800_000_000.0, alarm_warn_acked=True, warn_minutes=2, end_minute=20,
+        welcomed=True,
     )
     state.save(saved, path)
     assert state.load(path) == saved

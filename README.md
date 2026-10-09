@@ -27,7 +27,7 @@ including into the menu bar beside the notch.
   Left, Top Left, on whichever screen the tile is on. A tile parked this way
   stays parked when it is resized; dragging it anywhere else lets go.
 - **Quit:** from that menu. There is no Dock icon and no menu bar; the tile
-  is the whole interface.
+  is the whole interface. The first time it runs, Gnomon says so.
 
 ### Session alert
 
@@ -210,3 +210,17 @@ What the tests cannot reach is the window server's half of the gestures — the
 mouse drag itself and the edge resize — or the alert form actually on screen
 (it is built and inspected, never run). The tests pin the configuration those
 depend on, but the gestures themselves are only ever checked by hand.
+
+
+## Privacy
+
+Gnomon makes no network connections and collects nothing. Its only file is
+the settings file described under Data.
+
+## Credits
+
+Gnomon was designed by Richard Sembera and coded with Anthropic's Claude (Fable 5.1).
+
+## License
+
+GNU Affero General Public License v3.0. See [LICENSE](LICENSE) for details.

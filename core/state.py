@@ -45,6 +45,8 @@ class State:
     # minute of the hour sessions last ended on.
     warn_minutes: int = alarm.DEFAULT_WARN_MINUTES
     end_minute: int = alarm.DEFAULT_END_MINUTE
+    # The first-launch hint ("drag it, right-click it") has been shown.
+    welcomed: bool = False
 
 
 def data_dir() -> Path:
@@ -103,6 +105,7 @@ def load(path: Path | None = None) -> State:
     end_minute = _number(raw.get("end_minute"))
     if end_minute is not None and 0 <= end_minute < 60:
         state.end_minute = int(end_minute)
+    state.welcomed = raw.get("welcomed") is True
     return state
 
 

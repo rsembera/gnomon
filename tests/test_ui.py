@@ -420,7 +420,7 @@ class TestMenu:
         assert titles == [
             "Session Alert\u2026", "",
             "24-Hour Time", "Colours", "Font", "Size", "Move To", "",
-            "Quit Gnomon",
+            "About Gnomon", "Quit Gnomon",
         ]
         colours = menu.itemWithTitle_("Colours").submenu()
         assert [colours.itemAtIndex_(i).title() for i in range(colours.numberOfItems())] == [
@@ -959,3 +959,36 @@ class TestLedFace:
         c.set_alarm(14, 50, 5, now=NOW)
         c.refresh(NOW + 45 * 60)
         assert distance(tile_colour(c._view), rgb(schemes.WARNING_TILE)) < 0.03
+
+
+class TestFirstLaunchAndAbout:
+    def test_the_hint_says_the_two_things_a_newcomer_cannot_guess(self):
+        from ui import about
+
+        text = (about.WELCOME_TITLE + " " + about.WELCOME_TEXT).lower()
+        assert "right-click" in text     # where everything is
+        assert "quit" in text            # and how to get rid of it
+        assert "drag" in text
+
+    def test_a_new_install_is_due_the_hint_and_gets_it_once(self, controller, monkeypatch):
+        from ui import about
+
+        shown = []
+        monkeypatch.setattr(about, "show_welcome", lambda: shown.append(state.load().welcomed))
+        c = controller()
+        assert c._state.welcomed is False
+        c.showWelcome_(None)
+        # Shown once, and already recorded as shown by the time it was up.
+        assert shown == [True]
+        assert controller()._state.welcomed is True
+
+    def test_about_panel_names_the_version_and_the_licence(self, controller):
+        from core import __version__
+        from ui import about
+
+        controller()
+        options = about.about_options()
+        assert options["ApplicationName"] == "Gnomon"
+        assert options["ApplicationVersion"] == __version__
+        assert "Richard Sembera" in options["Copyright"]
+        assert "Affero General Public License" in options["Credits"].string()
