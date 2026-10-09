@@ -64,15 +64,32 @@ python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
 
 ## Building the app
 
+There are two builds, and the difference matters.
+
+**For this Mac** (quick, while developing):
+
 ```sh
 ./venv/bin/pip install -r requirements-dev.txt
 ./venv/bin/python setup_app.py py2app       # -> dist/Gnomon.app
-cp -R dist/Gnomon.app /Applications/
 ```
 
-The build is ad-hoc signed, which is all a locally built app needs on the
-machine that built it. To hand it to anyone else it would have to go through
-the Developer ID sign / notarize steps in `edgecase/docs/Mac_Packaging_Guide.md`.
+**For anyone else** (the one to release):
+
+```sh
+./scripts/build_release.sh                  # -> dist/Gnomon.app
+```
+
+The first uses the everyday venv, which is Homebrew's Python. Homebrew
+compiles Python for the Mac it is installed on, so an app bundled from it
+opens only on that Mac's version of macOS or newer, whatever its Info.plist
+says. The release script builds from the Python published at python.org
+instead (install its macOS universal installer once; it sits beside
+Homebrew's), which is built to run on older systems. The script then drops
+the Intel half of every compiled file and refuses to finish unless everything
+in the bundle is Apple Silicon and runs on the macOS version the app
+declares.
+
+**Requirements for the released app: Apple Silicon, macOS 12 or newer.**
 
 ## Design decisions
 
