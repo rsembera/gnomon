@@ -29,14 +29,23 @@ from AppKit import (
     NSApplicationActivationPolicyAccessory,
     NSApplicationDidChangeScreenParametersNotification,
     NSBackingStoreBuffered,
+    NSBaselineOffsetAttributeName,
     NSBezierPath,
+    NSBitmapImageRep,
+    NSCalibratedRGBColorSpace,
     NSColor,
     NSControlStateValueOff,
     NSControlStateValueOn,
     NSFont,
     NSFontAttributeName,
+    NSFontDescriptorSystemDesignRounded,
+    NSFontDescriptorSystemDesignSerif,
+    NSFontFeatureSelectorIdentifierKey,
+    NSFontFeatureSettingsAttribute,
+    NSFontFeatureTypeIdentifierKey,
     NSFontWeightMedium,
     NSForegroundColorAttributeName,
+    NSGraphicsContext,
     NSMenu,
     NSMenuItem,
     NSMutableAttributedString,
@@ -65,7 +74,7 @@ from Foundation import (
 )
 from PyObjCTools import AppHelper
 
-from core import alarm, clockface, schemes, state
+from core import alarm, clockface, fonts, schemes, state
 from ui import alert_form
 
 APP_NAME = "Gnomon"
@@ -116,10 +125,108 @@ def _palette(scheme_key: str, flash: str | None = None):
     return _srgb(scheme.tile), _srgb(scheme.digits), _srgb(scheme.edge, scheme.edge_alpha)
 
 
-def _digit_font(size: float):
-    # Monospaced DIGITS (not a monospaced face): every numeral is the same
-    # width, so the time does not shimmy as the seconds change.
-    return NSFont.monospacedDigitSystemFontOfSize_weight_(size, NSFontWeightMedium)
+# Non-system faces, by PostScript name. All ship with macOS.
+_NAMED_FACES = {
+    "din": "DINAlternate-Bold",
+    "typewriter": "AmericanTypewriter-Semibold",
+}
+
+# The OpenType "tabular figures" feature (number spacing: monospaced).
+_TABULAR = {
+    NSFontFeatureSettingsAttribute: [
+        {NSFontFeatureTypeIdentifierKey: 6, NSFontFeatureSelectorIdentifierKey: 0}
+    ]
+}
+
+
+def _tabular(font):
+    descriptor = font.fontDescriptor().fontDescriptorByAddingAttributes_(_TABULAR)
+    return NSFont.fontWithDescriptor_size_(descriptor, font.pointSize()) or font
+
+
+def _digit_font(size: float, face: str = fonts.DEFAULT):
+    """The font for `face` at `size`, with numerals of equal width.
+
+    Equal-width DIGITS, not necessarily a monospaced face: every numeral
+    takes the same space, so the time does not shimmy as the seconds
+    change. A face that cannot be found falls back to the standard one
+    rather than leaving the tile blank.
+    """
+    font = None
+    if face == "mono":
+        font = NSFont.monospacedSystemFontOfSize_weight_(size, NSFontWeightMedium)
+    elif face in ("rounded", "serif"):
+        design = (
+            NSFontDescriptorSystemDesignRounded
+            if face == "rounded"
+            else NSFontDescriptorSystemDesignSerif
+        )
+        base = NSFont.systemFontOfSize_weight_(size, NSFontWeightMedium)
+        descriptor = base.fontDescriptor().fontDescriptorWithDesign_(design)
+        if descriptor is not None:
+            font = NSFont.fontWithDescriptor_size_(descriptor, size)
+    elif face in _NAMED_FACES:
+        font = NSFont.fontWithName_size_(_NAMED_FACES[face], size)
+    if font is None:
+        return NSFont.monospacedDigitSystemFontOfSize_weight_(size, NSFontWeightMedium)
+    return _tabular(font)
+
+
+_COLON_LIFT_CACHE: dict[str, float] = {}
+
+
+def _colon_lift(face: str) -> float:
+    """How far `face`'s colon must be raised to sit at the middle of the
+    digits, as a fraction of the font size.
+
+    MEASURED from a rendering, not worked out from the font's metrics. The
+    system font raises a colon by itself when it sits between numerals, and
+    its metrics do not say so: 1.0 trusted the metrics, lifted the colon a
+    second time and left it level with the top of the digits. Most other
+    faces leave the colon on the baseline. Drawing "0:0" once and looking
+    at where the ink landed is right in both cases, and for any face added
+    later.
+    """
+    if face in _COLON_LIFT_CACHE:
+        return _COLON_LIFT_CACHE[face]
+    size = 200.0
+    wide, high = int(size * 2.6), int(size * 1.6)
+    baseline = size * 0.4  # from the bottom of the bitmap
+    font = _digit_font(size, face)
+    rep = NSBitmapImageRep.alloc().initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(
+        None, wide, high, 8, 4, True, False, NSCalibratedRGBColorSpace, 0, 0
+    )
+    context = NSGraphicsContext.graphicsContextWithBitmapImageRep_(rep)
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.setCurrentContext_(context)
+    NSMutableAttributedString.alloc().initWithString_attributes_(
+        "0:0", {NSFontAttributeName: font, NSForegroundColorAttributeName: NSColor.whiteColor()}
+    ).drawAtPoint_((size * 0.2, baseline + font.descender()))
+    NSGraphicsContext.restoreGraphicsState()
+
+    row_bytes = rep.bytesPerRow()
+    alpha = bytes(rep.bitmapData()[: row_bytes * high])[3::4]  # one byte per pixel
+    per_row = row_bytes // 4
+    # Runs of inked columns: digit, colon, digit.
+    runs, run = [], []
+    for x in range(wide):
+        if any(a > 127 for a in alpha[x::per_row]):
+            run.append(x)
+        elif run:
+            runs.append(run)
+            run = []
+    lift = 0.0
+    if len(runs) == 3:
+        rows = [
+            y for y in range(high)
+            if any(alpha[y * per_row + x] > 127 for x in runs[1])
+        ]
+        colon_middle = (high - (rows[0] + rows[-1] + 1) / 2.0 - baseline) / size
+        lift = font.capHeight() / size / 2.0 - colon_middle
+    if abs(lift) < 0.01:
+        lift = 0.0  # already centred (the system faces): leave well alone
+    _COLON_LIFT_CACHE[face] = lift
+    return lift
 
 
 def _rect(ns_rect) -> clockface.Rect:
@@ -161,13 +268,21 @@ class ClockView(NSView):
         self._flash = None    # alarm.WARNING / alarm.ENDED while lit, else None
         self._armed = False   # a session alert is set: show the small dot
         self._controller = None
-        font = _digit_font(REF_SIZE)
+        self.set_face(fonts.DEFAULT)
+        return self
+
+    @objc.python_method
+    def set_face(self, face: str):
+        """Switch typeface and take its measurements."""
+        self._face = face if fonts.is_known(face) else fonts.DEFAULT
+        font = _digit_font(REF_SIZE, self._face)
         reference = NSMutableAttributedString.alloc().initWithString_attributes_(
             clockface.WIDEST, {NSFontAttributeName: font}
         )
         self._ref_width = reference.size().width
         self._ref_cap = font.capHeight()
-        return self
+        self._colon_lift = _colon_lift(self._face)
+        self.setNeedsDisplay_(True)
 
     def isOpaque(self):
         return False
@@ -212,7 +327,7 @@ class ClockView(NSView):
             point_size *= clockface.digit_scale(size, box_width, cap)
             if point_size <= 0:
                 return None, 0.0
-            font = _digit_font(point_size)
+            font = _digit_font(point_size, self._face)
             box_width = NSMutableAttributedString.alloc().initWithString_attributes_(
                 clockface.WIDEST, {NSFontAttributeName: font}
             ).size().width
@@ -241,10 +356,16 @@ class ClockView(NSView):
             self._text,
             {NSFontAttributeName: font, NSForegroundColorAttributeName: digits},
         )
-        # No adjustment to the colons: the system font already raises a
-        # colon to the middle of the numerals when it sits between digits.
-        # (1.0 to 1.2.2 lifted it again by hand, which left it level with
-        # the TOP of the digits; tests/test_ui.py now measures it.)
+        # Colons at the middle of the digits. The system faces do this by
+        # themselves (lift is 0 for them); the others leave the colon on
+        # the baseline and are raised by a measured amount (_colon_lift).
+        if self._colon_lift:
+            lift = self._colon_lift * font.pointSize()
+            for index, character in enumerate(self._text):
+                if character == ":":
+                    text.addAttribute_value_range_(
+                        NSBaselineOffsetAttributeName, lift, (index, 1)
+                    )
         # Centre the time as it actually reads. In 12-hour mode a one-digit
         # hour is a digit narrower than the widest time the font was sized
         # for; centring it costs one half-digit shift when 9:59:59 becomes
@@ -300,6 +421,7 @@ class Controller(NSObject):
         view = ClockView.alloc().initWithFrame_(NSMakeRect(0, 0, 144, 40))
         view._controller = self
         view._scheme = self._state.scheme
+        view.set_face(self._state.font)
         self._aspect = clockface.aspect_ratio(view._ref_width, view._ref_cap)
 
         size = clockface.tile_size(self._state.height, self._aspect)
@@ -323,10 +445,7 @@ class Controller(NSObject):
         # Dragging is started by the view (ClockView.mouseDown_), which needs
         # the press for itself when the tile is flashing.
         panel.setMovableByWindowBackground_(False)
-        # Aspect-locked: dragging any edge scales the whole clock.
-        panel.setContentAspectRatio_(size)
-        panel.setContentMinSize_(clockface.tile_size(clockface.MIN_HEIGHT, self._aspect))
-        panel.setContentMaxSize_(clockface.tile_size(clockface.MAX_HEIGHT, self._aspect))
+        self.lock_aspect(panel, size)
         panel.setContentView_(view)
         panel.setDelegate_(self)
 
@@ -335,6 +454,14 @@ class Controller(NSObject):
         self.refresh()
         if show:
             panel.orderFrontRegardless()
+
+    @objc.python_method
+    def lock_aspect(self, panel, size):
+        # Aspect-locked: dragging any edge scales the whole clock. The
+        # shape comes from the typeface, so this is redone when it changes.
+        panel.setContentAspectRatio_(size)
+        panel.setContentMinSize_(clockface.tile_size(clockface.MIN_HEIGHT, self._aspect))
+        panel.setContentMaxSize_(clockface.tile_size(clockface.MAX_HEIGHT, self._aspect))
 
     @objc.python_method
     def screen_rects(self) -> list:
@@ -584,6 +711,12 @@ class Controller(NSObject):
             ).setTag_(index)
         add(menu, "Colours", None).setSubmenu_(colours)
 
+        faces = NSMenu.alloc().initWithTitle_("Font")
+        faces.setAutoenablesItems_(False)
+        for index, (face, label) in enumerate(fonts.FACES):
+            add(faces, label, "chooseFace:", checked=face == self._state.font).setTag_(index)
+        add(menu, "Font", None).setSubmenu_(faces)
+
         sizes = NSMenu.alloc().initWithTitle_("Size")
         sizes.setAutoenablesItems_(False)
         current = round(self._panel.frame().size.height)
@@ -614,6 +747,23 @@ class Controller(NSObject):
         self._state.scheme = schemes.get(key).key
         self._view._scheme = self._state.scheme
         self._view.setNeedsDisplay_(True)
+        self._panel.invalidateShadow()
+        self.save_soon()
+
+    def chooseFace_(self, sender):
+        self.set_face(fonts.FACES[sender.tag()][0])
+
+    @objc.python_method
+    def set_face(self, face: str):
+        """Change typeface. The tile keeps its height and its place; its
+        width follows the new face (a monospaced one is wider)."""
+        self._view.set_face(face)
+        self._state.font = self._view._face
+        self._aspect = clockface.aspect_ratio(self._view._ref_width, self._view._ref_cap)
+        height = self._panel.frame().size.height
+        # Limits first, or the old face's maximum width would clip the new tile.
+        self.lock_aspect(self._panel, clockface.tile_size(height, self._aspect))
+        self.set_height(height)
         self._panel.invalidateShadow()
         self.save_soon()
 

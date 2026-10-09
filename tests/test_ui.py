@@ -14,7 +14,7 @@ import pytest
 
 AppKit = pytest.importorskip("AppKit")
 
-from core import alarm, clockface, schemes, state  # noqa: E402
+from core import alarm, clockface, fonts, schemes, state  # noqa: E402
 
 # A fixed "now" for alert tests: 14:00:00 local on an ordinary day, an even
 # second (so the flash is in its lit half; NOON + 1 is the unlit half).
@@ -419,7 +419,7 @@ class TestMenu:
         titles = [menu.itemAtIndex_(i).title() for i in range(menu.numberOfItems())]
         assert titles == [
             "Session Alert\u2026", "",
-            "24-Hour Time", "Colours", "Size", "Move To", "",
+            "24-Hour Time", "Colours", "Font", "Size", "Move To", "",
             "Quit Gnomon",
         ]
         colours = menu.itemWithTitle_("Colours").submenu()
@@ -436,7 +436,7 @@ class TestMenu:
         c.set_alarm(14, 50, 5, now=NOW)  # so "Turn Off Session Alert" is there too
         menu = c.build_menu()
         items = [menu.itemAtIndex_(i) for i in range(menu.numberOfItems())]
-        for title in ("Colours", "Size", "Move To"):
+        for title in ("Colours", "Font", "Size", "Move To"):
             submenu = menu.itemWithTitle_(title).submenu()
             items += [submenu.itemAtIndex_(i) for i in range(submenu.numberOfItems())]
         for item in items:
@@ -714,3 +714,173 @@ class TestAlertForm:
         assert alert.buttons()[0].keyEquivalent() == "\r"      # Return sets
         assert alert.buttons()[1].keyEquivalent() == "\x1b"    # Esc cancels
         assert alert.window().level() == AppKit.NSStatusWindowLevel
+
+
+FACES = [face for face, _label in fonts.FACES]
+
+
+def ink_runs(view, scheme_key="ink"):
+    """Runs of inked columns in an off-screen render, left to right, each as
+    (width, top, bottom) in pixels; plus the bitmap's pixel height."""
+    scheme = schemes.get(scheme_key)
+    tile, digits = rgb(scheme.tile), rgb(scheme.digits)
+    rep = render(view)
+    wide, high = rep.pixelsWide(), rep.pixelsHigh()
+    columns = {}
+    for x in range(wide):
+        lit = [
+            y for y in range(high)
+            if rep.colorAtX_y_(x, y).alphaComponent() > 0.9
+            and distance(pixel(rep, x, y), digits) < 0.35 * distance(pixel(rep, x, y), tile)
+        ]
+        if lit:
+            columns[x] = (min(lit), max(lit))
+    runs, run = [], []
+    for x in sorted(columns):
+        if run and x != run[-1] + 1:
+            runs.append(run)
+            run = []
+        run.append(x)
+    runs.append(run)
+    return [
+        (len(xs), min(columns[x][0] for x in xs), max(columns[x][1] for x in xs)) for xs in runs
+    ], high
+
+
+class TestFonts:
+    def test_menu_lists_the_faces_and_ticks_the_current_one(self, controller):
+        c = controller()
+        faces = c.build_menu().itemWithTitle_("Font").submenu()
+        assert [faces.itemAtIndex_(i).title() for i in range(faces.numberOfItems())] == [
+            "Standard", "Rounded", "Serif", "Mono", "DIN", "Typewriter",
+        ]
+        c.chooseFace_(faces.itemWithTitle_("DIN"))
+        assert c._state.font == c._view._face == "din"
+        faces = c.build_menu().itemWithTitle_("Font").submenu()
+        ticked = [
+            faces.itemAtIndex_(i).title()
+            for i in range(faces.numberOfItems())
+            if faces.itemAtIndex_(i).state() == AppKit.NSControlStateValueOn
+        ]
+        assert ticked == ["DIN"]
+
+    def test_every_face_is_installed_and_is_its_own_typeface(self, controller):
+        # A face that is missing silently falls back to Standard, which would
+        # leave two menu items that look the same.
+        from ui.app import _digit_font
+
+        controller()
+        names = {face: _digit_font(40.0, face).fontName() for face in FACES}
+        assert len(set(names.values())) == len(FACES), names
+
+    @pytest.mark.parametrize("face", FACES)
+    def test_numerals_are_all_the_same_width(self, controller, face):
+        # Otherwise the time shimmies sideways as the seconds change.
+        from ui.app import _digit_font
+
+        controller()
+        font = _digit_font(40.0, face)
+        widths = {
+            round(
+                AppKit.NSAttributedString.alloc()
+                .initWithString_attributes_(str(n), {AppKit.NSFontAttributeName: font})
+                .size()
+                .width,
+                2,
+            )
+            for n in range(10)
+        }
+        assert len(widths) == 1, (face, widths)
+
+    @pytest.mark.parametrize("face", FACES)
+    @pytest.mark.parametrize("height", [28.0, 40.0, 80.0])
+    def test_digits_fit_and_are_centred_in_every_face(self, controller, face, height):
+        c = controller()
+        c.set_face(face)
+        c.set_height(height)
+        c._view._text = clockface.WIDEST
+        left, top, right, bottom, wide, high = digit_pixel_box(c._view)
+        scale = high / height
+        assert left > 0.12 * high and right < wide - 0.12 * high
+        assert top > 0.12 * high and bottom < high - 0.12 * high
+        assert (left + right) / 2 == pytest.approx(wide / 2, abs=1.5 * scale)
+        assert (top + bottom) / 2 == pytest.approx(high / 2, abs=1.5 * scale)
+
+    @pytest.mark.parametrize("face", FACES)
+    @pytest.mark.parametrize("height", [40.0, 80.0])
+    def test_colons_are_centred_on_the_digits_in_every_face(self, controller, face, height):
+        # The system faces centre a colon between numerals by themselves; the
+        # others leave it on the baseline. Either way it must end up centred,
+        # and that can only be told by looking at what was drawn.
+        c = controller()
+        c.set_face(face)
+        c.set_height(height)
+        c._view._text = "20:45:38"   # no 1s: in some faces a 1 is as narrow as a colon
+        runs, high = ink_runs(c._view)
+        assert len(runs) == 8, (face, runs)
+        # The colons are the two narrowest runs, in positions 3 and 6. (Found
+        # by rank, not by a fixed width: a monospaced face has stout colons.)
+        by_width = sorted(runs)
+        colons, numerals = by_width[:2], by_width[2:]
+        assert sorted(colons) == sorted([runs[2], runs[5]]), (face, runs)
+        assert colons[1][0] < 0.6 * numerals[0][0], (face, runs)
+        digit_top = min(top for _w, top, _b in numerals)
+        digit_bottom = max(bottom for _w, _t, bottom in numerals)
+        scale = high / height
+        for _width, top, bottom in colons:
+            assert (top + bottom) / 2 == pytest.approx(
+                (digit_top + digit_bottom) / 2, abs=1.25 * scale
+            ), face
+
+    def test_changing_face_keeps_the_height_and_reshapes_the_tile(self, controller):
+        c = controller()
+        x0, y0, w0, h0 = frame_of(c)
+        c.set_face("mono")   # monospaced colons: a wider tile
+        x1, y1, w1, h1 = frame_of(c)
+        assert h1 == h0 and w1 > w0
+        assert y1 + h1 == y0 + h0                                  # top edge fixed
+        assert x1 + w1 / 2 == pytest.approx(x0 + w0 / 2, abs=1)   # centre fixed
+        ratio = c._panel.contentAspectRatio()
+        assert ratio.width / ratio.height == pytest.approx(w1 / h1, rel=0.02)
+        c.set_face("din")    # a narrow face: a narrower tile than Standard
+        assert frame_of(c)[2] < w0
+
+    def test_changing_face_keeps_a_parked_tile_parked(self, controller):
+        c = controller()
+        c.move_to("bottom-right")
+        for face in ("mono", "din", "standard"):
+            c.set_face(face)
+            x, y, w, h = frame_of(c)
+            assert (x, y) == tuple(c.anchored_origin("bottom-right", (w, h))), face
+            assert inside((x, y, w, h), visible_frame(c))
+
+    def test_the_largest_size_is_reachable_in_a_wide_face(self, controller):
+        # The width limit belongs to the face; it has to move with it.
+        c = controller()
+        c.set_face("mono")
+        c.set_height(clockface.MAX_HEIGHT)
+        w, h = frame_of(c)[2:]
+        assert h == clockface.MAX_HEIGHT
+        assert w == clockface.tile_size(clockface.MAX_HEIGHT, c._aspect)[0]
+
+    def test_face_survives_a_relaunch(self, controller):
+        first = controller()
+        first.set_face("typewriter")
+        first.save_now()
+        second = controller()
+        assert second._view._face == "typewriter"
+        assert frame_of(second) == frame_of(first)
+
+    def test_an_unknown_face_in_the_state_file_means_standard(self, controller):
+        path = state.data_dir() / state.STATE_FILE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('{"font": "comic-sans"}', encoding="utf-8")
+        assert controller()._view._face == "standard"
+
+    def test_standard_face_gets_no_colon_lift(self, controller):
+        # The regression from 1.0: lifting a colon the font had already lifted.
+        from ui.app import _colon_lift
+
+        controller()
+        assert _colon_lift("standard") == 0.0
+        assert _colon_lift("din") > 0.1          # sits on the baseline: needs raising

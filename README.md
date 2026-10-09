@@ -17,10 +17,12 @@ including into the menu bar beside the notch.
   the tile. The shape is locked, so the whole clock scales; 20 to 240 points
   tall.
 - **Menu:** right-click (or two-finger click) the tile — Session Alert,
-  24-Hour Time, Colours, Size (Small / Medium / Large), Move To,
+  24-Hour Time, Colours, Font, Size (Small / Medium / Large), Move To,
   Quit Gnomon.
 - **Colours:** three dark (White, Green or Amber digits on black) and three
   light (Black, Blue or Red digits on a pale tile).
+- **Font:** Standard, Rounded, Serif, Mono, DIN, Typewriter. The tile keeps
+  its height and changes width to suit the face.
 - **Move To:** Top Centre, Top Right, Bottom Right, Bottom Centre, Bottom
   Left, Top Left, on whichever screen the tile is on. A tile parked this way
   stays parked when it is resized; dragging it anywhere else lets go.
@@ -105,11 +107,23 @@ resize can keep the tile there (a tile in a corner grows into the screen, not
 off it). There is no un-park command: the remembered place counts only while
 the tile is still exactly at it.
 
-**Digits that hold still.** System font with monospaced numerals, so the time
-does not shimmy as seconds change. The time is centred as it reads, so a
-one-digit hour in 12-hour mode sits in the middle of the tile (at the cost of
-one half-digit shift when 9:59:59 becomes 10:00:00). The colons sit at the
-middle of the digits, which the system font does by itself between numerals.
+**Digits that hold still.** Every face is set with numerals of equal width,
+so the time does not shimmy as seconds change. The time is centred as it
+reads, so a one-digit hour in 12-hour mode sits in the middle of the tile (at
+the cost of one half-digit shift when 9:59:59 becomes 10:00:00).
+
+**Six faces, all already on the Mac.** Standard, Rounded, Serif (New York)
+and Mono (SF Mono) are the system's own; DIN Alternate and American
+Typewriter ship with macOS. Nothing is bundled, so there is nothing to
+license. The tile's proportions come from the face's own measurements, which
+is why a monospaced face makes a wider tile and DIN a narrower one.
+
+**Colons at the middle of the digits, by measurement.** The system faces
+raise a colon by themselves when it sits between numerals; the others leave
+it on the baseline. The font's metrics do not say which (1.0 trusted them
+and ended up with colons level with the top of the digits), so each face's
+colon is drawn once off-screen and raised by however far it actually fell
+short.
 
 **A tick that does not drift.** The timer is re-armed from the wall clock
 after every tick instead of repeating every 1.0s, so lateness never
@@ -146,7 +160,7 @@ the same mechanism a title bar uses.
 ## Data
 
 One file: `~/Library/Application Support/Gnomon/state.json` (position, size,
-colour scheme, hour mode, the alert that is set, and the last-used warning
+colour scheme, typeface, hour mode, the alert that is set, and the last-used warning
 and end minute). Written atomically, a moment after the tile stops
 moving and again on quit. Delete it to reset everything.
 `GNOMON_DATA_DIR` overrides the folder.
@@ -160,6 +174,7 @@ gnomon/
     clockface.py         # Time formatting, tick timing, tile geometry — no AppKit
     alarm.py             # Session alert: when to flash, what a click does — no AppKit
     schemes.py           # Colour schemes (plain data)
+    fonts.py             # Typefaces (plain data)
     state.py             # Remembered settings: load (forgiving) / save (atomic)
   ui/
     app.py               # The panel, the view that draws it, the menu, the timer

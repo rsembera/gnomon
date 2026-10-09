@@ -15,7 +15,7 @@ import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from core import alarm, schemes
+from core import alarm, fonts, schemes
 from core.clockface import DEFAULT_HEIGHT, clamp_height, is_anchor
 
 STATE_FILE = "state.json"
@@ -33,6 +33,7 @@ class State:
     # that spot; dragging it away is how the anchor lapses.
     anchor: str | None = None
     scheme: str = schemes.DEFAULT
+    font: str = fonts.DEFAULT
     # None follows the macOS 12/24-hour setting; True/False is an explicit
     # choice made from the menu.
     twenty_four: bool | None = None
@@ -87,6 +88,8 @@ def load(path: Path | None = None) -> State:
     elif raw.get("dark") is False:
         # 1.0 stored a dark/paper switch instead of a scheme name.
         state.scheme = "paper"
+    if fonts.is_known(raw.get("font")):
+        state.font = raw["font"]
     if isinstance(raw.get("twenty_four"), bool):
         state.twenty_four = raw["twenty_four"]
 

@@ -16,7 +16,8 @@ def test_missing_file_gives_defaults(tmp_path):
 def test_round_trip(tmp_path):
     path = tmp_path / "nested" / "state.json"  # parent is created on save
     saved = state.State(
-        x=663.0, y=872.0, height=28.0, anchor="bottom-left", scheme="amber", twenty_four=True,
+        x=663.0, y=872.0, height=28.0, anchor="bottom-left", scheme="amber", font="din",
+        twenty_four=True,
         alarm_end=1_800_000_000.0, alarm_warn_acked=True, warn_minutes=2, end_minute=20,
     )
     state.save(saved, path)
@@ -40,7 +41,7 @@ def test_bad_fields_are_dropped_one_by_one(tmp_path):
     path.write_text(
         json.dumps({
             "x": "left", "y": 100, "height": 99999, "anchor": "middle",
-            "scheme": "plaid", "twenty_four": False,
+            "scheme": "plaid", "font": 12, "twenty_four": False,
             "alarm_end": "soon", "alarm_warn_acked": True, "warn_minutes": 99, "end_minute": 75,
         }),
         encoding="utf-8",
@@ -50,6 +51,7 @@ def test_bad_fields_are_dropped_one_by_one(tmp_path):
     assert loaded.height == MAX_HEIGHT            # clamped, not rejected
     assert loaded.anchor is None                  # not one of the six places
     assert loaded.scheme == "ink"                 # unknown scheme: default kept
+    assert loaded.font == "standard"              # not a face: default kept
     assert loaded.twenty_four is False
     assert loaded.alarm_end is None               # no end time, so no alert ...
     assert loaded.alarm_warn_acked is False       # ... and nothing acknowledged
