@@ -156,3 +156,93 @@ class TestPlacement:
         assert (w, h) == (216.0, 60.0)
         assert y + h == 800 + 40          # top edge unmoved
         assert x + w / 2 == 600 + 144 / 2  # centre unmoved
+
+
+class TestEdges:
+    SIZE = (144.0, 40.0)
+
+    def test_the_middle_is_not_an_edge(self):
+        assert clockface.edge_at((72, 20), self.SIZE) is None
+        assert clockface.edge_at((10, 10), self.SIZE) is None
+
+    def test_each_side_and_corner_is_found(self):
+        assert clockface.edge_at((2, 20), self.SIZE) == "left"
+        assert clockface.edge_at((142, 20), self.SIZE) == "right"
+        assert clockface.edge_at((72, 38), self.SIZE) == "top"
+        assert clockface.edge_at((72, 2), self.SIZE) == "bottom"
+        assert clockface.edge_at((2, 38), self.SIZE) == "top-left"
+        assert clockface.edge_at((142, 38), self.SIZE) == "top-right"
+        assert clockface.edge_at((2, 2), self.SIZE) == "bottom-left"
+        assert clockface.edge_at((142, 2), self.SIZE) == "bottom-right"
+
+    def test_every_answer_is_a_known_edge(self):
+        for x in range(0, 145, 4):
+            for y in range(0, 41, 2):
+                edge = clockface.edge_at((x, y), self.SIZE)
+                assert edge is None or edge in clockface.EDGES
+
+    def test_a_tiny_tile_still_has_a_middle_to_drag(self):
+        # 20pt tall: a 6pt margin top and bottom would leave 8pt; it shrinks to 4.
+        size = (72.0, 20.0)
+        assert clockface.edge_at((36, 5), size) is None
+        assert clockface.edge_at((36, 15), size) is None
+        assert clockface.edge_at((36, 3), size) == "bottom"
+
+
+class TestEdgeResize:
+    ASPECT = 3.6
+    FRAME = (600.0, 800.0, 144.0, 40.0)   # top edge at 840, right edge at 744
+
+    def drag(self, edge, dx=0.0, dy=0.0):
+        return clockface.edge_resized_frame(self.FRAME, edge, dx, dy, self.ASPECT)
+
+    def test_right_edge_follows_the_pointer_and_the_left_and_top_stay(self):
+        x, y, w, h = self.drag("right", dx=72)
+        assert (w, h) == (216.0, 60.0)
+        assert x == 600 and y + h == 840
+
+    def test_left_edge_follows_the_pointer_and_the_right_and_top_stay(self):
+        x, y, w, h = self.drag("left", dx=-72)
+        assert (w, h) == (216.0, 60.0)
+        assert x + w == 744 and y + h == 840
+
+    def test_bottom_edge_grows_downward_about_the_same_centre(self):
+        x, y, w, h = self.drag("bottom", dy=-20)
+        assert h == 60.0 and y + h == 840
+        assert x + w / 2 == 600 + 72
+
+    def test_top_edge_grows_upward_from_a_fixed_bottom(self):
+        x, y, w, h = self.drag("top", dy=20)
+        assert h == 60.0 and y == 800
+        assert x + w / 2 == 600 + 72
+
+    def test_dragging_inward_shrinks(self):
+        assert self.drag("right", dx=-36)[2:] == (108.0, 30.0)
+        assert self.drag("top", dy=-10)[3] == 30.0
+
+    @pytest.mark.parametrize("corner,dx,dy,fixed", [
+        ("bottom-right", 72, -20, (600, 840)),    # top-left stays
+        ("bottom-left", -72, -20, (744, 840)),    # top-right stays
+        ("top-right", 72, 20, (600, 800)),        # bottom-left stays
+        ("top-left", -72, 20, (744, 800)),        # bottom-right stays
+    ])
+    def test_a_corner_keeps_the_opposite_corner_where_it_was(self, corner, dx, dy, fixed):
+        x, y, w, h = self.drag(corner, dx=dx, dy=dy)
+        assert (w, h) == (216.0, 60.0)
+        opposite_x = x if "right" in corner else x + w
+        opposite_y = y if "top" in corner else y + h
+        assert (opposite_x, opposite_y) == fixed
+
+    def test_at_a_corner_the_bigger_request_wins(self):
+        # Mostly sideways: the width decides.
+        assert self.drag("bottom-right", dx=72, dy=-2)[2:] == (216.0, 60.0)
+        # Mostly downward: the height decides.
+        assert self.drag("bottom-right", dx=2, dy=-20)[2:] == (216.0, 60.0)
+
+    def test_size_stays_within_the_limits(self):
+        assert self.drag("right", dx=5000)[3] == clockface.MAX_HEIGHT
+        assert self.drag("right", dx=-5000)[3] == clockface.MIN_HEIGHT
+
+    def test_no_movement_changes_nothing(self):
+        for edge in clockface.EDGES:
+            assert self.drag(edge) == self.FRAME, edge

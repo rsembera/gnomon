@@ -36,6 +36,11 @@ from AppKit import (
     NSColor,
     NSControlStateValueOff,
     NSControlStateValueOn,
+    NSCursor,
+    NSEvent,
+    NSEventMaskLeftMouseDragged,
+    NSEventMaskLeftMouseUp,
+    NSEventTypeLeftMouseUp,
     NSFont,
     NSFontAttributeName,
     NSFontDescriptorSystemDesignSerif,
@@ -51,6 +56,12 @@ from AppKit import (
     NSPanel,
     NSScreen,
     NSStatusWindowLevel,
+    NSTrackingActiveAlways,
+    NSTrackingArea,
+    NSTrackingCursorUpdate,
+    NSTrackingInVisibleRect,
+    NSTrackingMouseEnteredAndExited,
+    NSTrackingMouseMoved,
     NSView,
     NSWindowCollectionBehaviorCanJoinAllSpaces,
     NSWindowCollectionBehaviorFullScreenAuxiliary,
@@ -169,6 +180,26 @@ def _digit_font(size: float, face: str = fonts.DEFAULT):
     return _tabular(font)
 
 
+# NSCursor.frameResizeCursorFromPosition:inDirections: (macOS 15 and later)
+# takes these bits; "all directions" because the tile can grow or shrink.
+_CURSOR_POSITION_BITS = {"top": 1, "left": 2, "bottom": 4, "right": 8}
+_CURSOR_ALL_DIRECTIONS = 3
+
+
+def _resize_cursor(edge: str):
+    """The pointer to show over `edge`: the system's own window-resize
+    arrows where it offers them, including the diagonal ones for corners.
+    Before macOS 15 there are no public diagonal cursors, so a corner gets
+    the left-right arrows there."""
+    make = getattr(NSCursor, "frameResizeCursorFromPosition_inDirections_", None)
+    if make is not None:
+        position = sum(_CURSOR_POSITION_BITS[part] for part in edge.split("-"))
+        return make(position, _CURSOR_ALL_DIRECTIONS)
+    if edge in ("top", "bottom"):
+        return NSCursor.resizeUpDownCursor()
+    return NSCursor.resizeLeftRightCursor()
+
+
 # How strongly the LED face shows the segments a digit is not using.
 UNLIT_ALPHA = 0.10
 
@@ -269,6 +300,21 @@ class ClockView(NSView):
         self._armed = False   # a session alert is set: show the small dot
         self._controller = None
         self.set_face(fonts.DEFAULT)
+        # Pointer tracking, so the edges can show resize arrows. "Active
+        # always" because Gnomon is never the active app; "in visible rect"
+        # so the area follows the tile as it is resized.
+        self.addTrackingArea_(
+            NSTrackingArea.alloc().initWithRect_options_owner_userInfo_(
+                self.bounds(),
+                NSTrackingMouseEnteredAndExited
+                | NSTrackingMouseMoved
+                | NSTrackingCursorUpdate
+                | NSTrackingActiveAlways
+                | NSTrackingInVisibleRect,
+                self,
+                None,
+            )
+        )
         return self
 
     @objc.python_method
@@ -302,14 +348,70 @@ class ClockView(NSView):
     def acceptsFirstMouse_(self, event):
         return True
 
+    @objc.python_method
+    def edge_under(self, event) -> str | None:
+        """The edge or corner the pointer is on, or None for the middle."""
+        point = self.convertPoint_fromView_(event.locationInWindow(), None)
+        size = self.bounds().size
+        return clockface.edge_at((point.x, point.y), (size.width, size.height))
+
+    @objc.python_method
+    def cursor_for(self, edge: str | None):
+        # While the tile is flashing a click anywhere answers the flash, so
+        # it offers no resize arrows then.
+        if edge is None or self._flash is not None:
+            return NSCursor.arrowCursor()
+        return _resize_cursor(edge)
+
+    def mouseMoved_(self, event):
+        self.cursor_for(self.edge_under(event)).set()
+
+    def mouseEntered_(self, event):
+        self.cursor_for(self.edge_under(event)).set()
+
+    def cursorUpdate_(self, event):
+        self.cursor_for(self.edge_under(event)).set()
+
+    def mouseExited_(self, event):
+        NSCursor.arrowCursor().set()
+
     def mouseDown_(self, event):
         # A click on a flashing tile answers the flash and does nothing
-        # else. Any other press starts a drag: performWindowDragWithEvent_
-        # hands the move to the window server, the same thing a title bar
-        # does, so the tile follows the pointer exactly.
+        # else. A press on an edge resizes. Any other press starts a drag:
+        # performWindowDragWithEvent_ hands the move to the window server,
+        # the same thing a title bar does, so the tile follows the pointer
+        # exactly.
         if self._controller is not None and self._controller.acknowledge():
             return
+        edge = self.edge_under(event)
+        if edge is not None and self._controller is not None:
+            self.track_resize(edge)
+            return
         self.window().performWindowDragWithEvent_(event)
+
+    @objc.python_method
+    def track_resize(self, edge: str):
+        """Follow the pointer until the button comes up, resizing as it goes.
+
+        Done here rather than left to the system because a borderless panel
+        gets no resize handles of its own. The loop runs in the run loop's
+        event-tracking mode, in which the clock's timer still fires.
+        """
+        window = self.window()
+        start_frame = _rect(window.frame())
+        start = NSEvent.mouseLocation()
+        parked = self._controller.current_anchor() is not None
+        _resize_cursor(edge).set()
+        while True:
+            event = window.nextEventMatchingMask_(
+                NSEventMaskLeftMouseDragged | NSEventMaskLeftMouseUp
+            )
+            if event is None or event.type() == NSEventTypeLeftMouseUp:
+                break
+            now = NSEvent.mouseLocation()
+            self._controller.resize_from_edge(
+                start_frame, edge, now.x - start.x, now.y - start.y, parked
+            )
 
     def menuForEvent_(self, event):
         return self._controller.build_menu() if self._controller else None
@@ -632,6 +734,19 @@ class Controller(NSObject):
     @objc.python_method
     def scale_by(self, factor: float):
         self.set_height(self._exact_height * factor)
+
+    @objc.python_method
+    def resize_from_edge(self, start_frame, edge: str, dx: float, dy: float, parked: bool):
+        """One step of an edge drag: `edge` has been pulled (dx, dy) from
+        where the drag began, when the tile's frame was `start_frame`."""
+        frame = clockface.edge_resized_frame(start_frame, edge, dx, dy, self._aspect)
+        if parked:
+            # Parked with "Move To": resize in place there, as the menu and
+            # a pinch do, rather than un-parking it by a few points.
+            self.set_height(frame[3])
+        else:
+            self._exact_height = frame[3]
+            self._panel.setFrame_display_(NSMakeRect(*frame), True)
 
     @objc.python_method
     def go_home(self):

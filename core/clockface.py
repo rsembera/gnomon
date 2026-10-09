@@ -160,6 +160,63 @@ def is_reachable(frame: Rect, screens: list[Rect], margin: float = GRAB_MARGIN) 
     return False
 
 
+# How close to an edge the pointer must be to resize instead of move.
+EDGE_MARGIN = 6.0
+
+EDGES = (
+    "top", "bottom", "left", "right",
+    "top-left", "top-right", "bottom-left", "bottom-right",
+)
+
+
+def edge_at(point: tuple[float, float], size: Size, margin: float = EDGE_MARGIN) -> str | None:
+    """Which edge or corner of the tile `point` is on, or None for the middle.
+
+    `point` is in the tile's own coordinates (origin bottom-left, y up).
+    The margin shrinks on a very small tile, so that there is always a
+    middle left to drag it by.
+    """
+    x, y = point
+    width, height = size
+    margin = min(margin, 0.2 * height)
+    vertical = "top" if y >= height - margin else "bottom" if y <= margin else None
+    horizontal = "left" if x <= margin else "right" if x >= width - margin else None
+    return "-".join(part for part in (vertical, horizontal) if part) or None
+
+
+def edge_resized_frame(frame: Rect, edge: str, dx: float, dy: float, aspect: float) -> Rect:
+    """The frame after dragging `edge` by (dx, dy), shape kept.
+
+    The side being dragged follows the pointer and the opposite side stays
+    where it is. Dragging a left or right edge alone keeps the TOP edge
+    fixed (the tile usually hangs from the top of the screen); dragging the
+    top or bottom alone keeps the tile centred on the same vertical line.
+    At a corner, whichever direction asks for the bigger tile wins, so the
+    corner never lags behind the pointer.
+    """
+    x, y, width, height = frame
+    parts = set(edge.split("-"))
+    wanted = []
+    if "right" in parts:
+        wanted.append((width + dx) / aspect)
+    if "left" in parts:
+        wanted.append((width - dx) / aspect)
+    if "top" in parts:
+        wanted.append(height + dy)
+    if "bottom" in parts:
+        wanted.append(height - dy)
+    new_width, new_height = tile_size(max(wanted), aspect)
+
+    if "right" in parts:
+        new_x = x
+    elif "left" in parts:
+        new_x = x + width - new_width
+    else:
+        new_x = x + (width - new_width) / 2.0
+    new_y = y if "top" in parts else y + height - new_height
+    return (round(new_x), round(new_y), new_width, new_height)
+
+
 def resized_frame(frame: Rect, size: Size) -> Rect:
     """New frame of `size` that keeps the top edge and horizontal centre.
 

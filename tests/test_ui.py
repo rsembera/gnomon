@@ -992,3 +992,68 @@ class TestFirstLaunchAndAbout:
         assert options["ApplicationVersion"] == __version__
         assert "Richard Sembera" in options["Copyright"]
         assert "Affero General Public License" in options["Credits"].string()
+
+
+class TestEdgeResizing:
+    def test_pointer_is_tracked_even_though_gnomon_is_never_the_active_app(self, controller):
+        areas = controller()._view.trackingAreas()
+        assert len(areas) == 1
+        options = areas[0].options()
+        assert options & AppKit.NSTrackingActiveAlways
+        assert options & AppKit.NSTrackingMouseMoved
+        assert options & AppKit.NSTrackingMouseEnteredAndExited
+        assert options & AppKit.NSTrackingInVisibleRect   # follows the tile when it is resized
+
+    def test_edges_show_resize_arrows_and_the_middle_shows_the_arrow(self, controller):
+        view = controller()._view
+        arrow = AppKit.NSCursor.arrowCursor()
+        assert view.cursor_for(None) == arrow
+        cursors = {edge: view.cursor_for(edge) for edge in clockface.EDGES}
+        assert all(cursor is not None and cursor != arrow for cursor in cursors.values())
+        # Sideways, up-and-down and the two diagonals are different pointers
+        # (the diagonals only where macOS has them: 15 and later).
+        assert cursors["left"] != cursors["top"]
+        if hasattr(AppKit.NSCursor, "frameResizeCursorFromPosition_inDirections_"):
+            assert cursors["top-left"] != cursors["left"]
+            assert cursors["top-left"] != cursors["top-right"]
+
+    def test_no_resize_arrows_while_flashing(self, controller):
+        # A click anywhere on a flashing tile answers the flash.
+        c = controller()
+        c.set_alarm(14, 50, 5, now=NOW)
+        c.refresh(NOW + 45 * 60)
+        assert c._view._flash is not None
+        assert c._view.cursor_for("left") == AppKit.NSCursor.arrowCursor()
+
+    def test_dragging_an_edge_resizes_from_the_opposite_side(self, controller):
+        c = controller()
+        c._panel.setFrameOrigin_((400, 400))
+        start = frame_of(c)
+        c.resize_from_edge(start, "right", 72, 0, False)
+        x, y, w, h = frame_of(c)
+        assert w > start[2] and h > start[3]
+        assert x == start[0]                         # left edge stayed
+        assert y + h == start[1] + start[3]          # top edge stayed
+        assert w / h == pytest.approx(c._aspect, rel=0.02)
+        # The drag is measured from where it began, so going back restores it.
+        c.resize_from_edge(start, "right", 0, 0, False)
+        assert frame_of(c) == start
+
+    def test_edge_drag_is_remembered_like_any_other_resize(self, controller):
+        c = controller()
+        c._panel.setFrameOrigin_((400, 400))
+        c.resize_from_edge(frame_of(c), "bottom", 0, -20, False)
+        c.save_now()
+        assert state.load().height == frame_of(c)[3] == 60.0
+        c.scale_by(1.0)   # a later pinch starts from the new size, not the old one
+        assert frame_of(c)[3] == 60.0
+
+    def test_edge_drag_on_a_parked_tile_keeps_it_parked(self, controller):
+        c = controller()
+        c.move_to("bottom-right")
+        start = frame_of(c)
+        c.resize_from_edge(start, "left", -72, 0, True)
+        x, y, w, h = frame_of(c)
+        assert h > start[3]
+        assert c.current_anchor() == "bottom-right"
+        assert (x, y) == tuple(c.anchored_origin("bottom-right", (w, h)))

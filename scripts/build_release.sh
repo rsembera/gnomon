@@ -39,7 +39,9 @@ echo "== tests, under the Python that will be shipped"
 ./venv-release/bin/python -m pytest -q | tail -1
 
 echo "== build"
-rm -rf build dist
+# Only the app is cleared: dist/ also holds released .dmg files, and a
+# rebuild has no business deleting those.
+rm -rf build "$APP"
 ./venv-release/bin/python setup_app.py py2app --arch arm64 > build.log 2>&1 \
     || { tail -20 build.log >&2; exit 1; }
 rm -f build.log

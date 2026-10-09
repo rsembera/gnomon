@@ -30,9 +30,9 @@ SHA-256 of `Gnomon-1.5.0.dmg`:
 ## Using it
 
 - **Move:** drag it, anywhere on the tile.
-- **Resize:** drag any edge, or pinch on the trackpad with the pointer over
-  the tile. The shape is locked, so the whole clock scales; 20 to 240 points
-  tall.
+- **Resize:** drag any edge or corner (the pointer turns into resize arrows
+  there), or pinch on the trackpad with the pointer over the tile. The shape
+  is locked, so the whole clock scales; 20 to 240 points tall.
 - **Menu:** right-click (or two-finger click) the tile — Session Alert,
   24-Hour Time, Colours, Font, Size (Small / Medium / Large), Move To,
   About Gnomon, Quit Gnomon.
@@ -207,10 +207,14 @@ no scheme's own colours can blur them, and different, so that if the
 warning was never clicked the change to red is how you know the session has
 actually ended.
 
-**A click answers a flash; anything else is a drag.** The view takes every
-mouse-down itself. On a flashing tile the press is consumed; otherwise it is
-handed to the window server as a window drag (`performWindowDragWithEvent_`),
-the same mechanism a title bar uses.
+**A click answers a flash; an edge resizes; anything else is a drag.** The
+view takes every mouse-down itself. On a flashing tile the press is consumed.
+Within six points of an edge it starts a resize, which the view follows
+itself (a borderless panel gets no resize handles from the system), with the
+opposite side held still. Anywhere else it is handed to the window server as
+a window drag (`performWindowDragWithEvent_`), the same mechanism a title bar
+uses. The resize arrows come from a tracking area marked "active always",
+since Gnomon is never the active app.
 
 ## Data
 
