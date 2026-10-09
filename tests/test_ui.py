@@ -1017,6 +1017,16 @@ class TestEdgeResizing:
             assert cursors["top-left"] != cursors["left"]
             assert cursors["top-left"] != cursors["top-right"]
 
+    def test_the_pointer_can_be_changed_from_the_background(self, controller):
+        # The undocumented window-server switch that makes the arrows show at
+        # all. If this starts failing on a new macOS, the arrows are gone
+        # (resizing still works) and it is time to look for another way.
+        from ui.app import allow_background_cursor
+
+        controller()
+        assert allow_background_cursor() is True
+        assert allow_background_cursor() is True   # harmless to ask twice
+
     def test_no_resize_arrows_while_flashing(self, controller):
         # A click anywhere on a flashing tile answers the flash.
         c = controller()

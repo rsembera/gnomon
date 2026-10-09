@@ -213,8 +213,16 @@ Within six points of an edge it starts a resize, which the view follows
 itself (a borderless panel gets no resize handles from the system), with the
 opposite side held still. Anywhere else it is handed to the window server as
 a window drag (`performWindowDragWithEvent_`), the same mechanism a title bar
-uses. The resize arrows come from a tracking area marked "active always",
-since Gnomon is never the active app.
+uses.
+
+**Resize arrows, by an undocumented switch.** macOS lets only the active app
+change the pointer, and Gnomon is never the active app, so its resize arrows
+were being set and ignored. The window server has a per-app switch for this
+("SetsCursorInBackground") which is not a documented interface; Gnomon turns
+it on at launch (`allow_background_cursor` in `ui/app.py`) because there is
+no documented way. If a future macOS removes it, the arrows stop appearing
+and nothing else changes: resizing does not depend on it, and a test says so
+out loud.
 
 ## Data
 

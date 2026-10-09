@@ -21,6 +21,7 @@ selector spelling (`tick_`, `windowDidMove_`, ...).
 
 from __future__ import annotations
 
+import ctypes
 import time
 
 import objc
@@ -184,6 +185,41 @@ def _digit_font(size: float, face: str = fonts.DEFAULT):
 # takes these bits; "all directions" because the tile can grow or shrink.
 _CURSOR_POSITION_BITS = {"top": 1, "left": 2, "bottom": 4, "right": 8}
 _CURSOR_ALL_DIRECTIONS = 3
+
+
+def allow_background_cursor() -> bool:
+    """Let Gnomon change the pointer although it is never the active app.
+
+    macOS only honours NSCursor.set() from the active application, and
+    Gnomon is deliberately never that, so without this the resize arrows are
+    set and silently ignored (measured: 0 times out of 8). The window server
+    has a per-application switch for exactly this case, "SetsCursorIn-
+    Background". It is NOT a documented interface. It is used here because
+    there is no documented one, and it is wrapped so that if a future macOS
+    drops it the only thing lost is the arrows: resizing itself does not
+    depend on it. Returns True if the switch was accepted.
+    """
+    try:
+        cf = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+        cg = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+        cf.CFStringCreateWithCString.restype = ctypes.c_void_p
+        cf.CFStringCreateWithCString.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_uint32]
+        cf.CFRelease.argtypes = [ctypes.c_void_p]
+        cg._CGSDefaultConnection.restype = ctypes.c_int
+        cg.CGSSetConnectionProperty.restype = ctypes.c_int
+        cg.CGSSetConnectionProperty.argtypes = [
+            ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p,
+        ]
+        utf8 = 0x08000100  # kCFStringEncodingUTF8
+        key = cf.CFStringCreateWithCString(None, b"SetsCursorInBackground", utf8)
+        try:
+            connection = cg._CGSDefaultConnection()
+            true = ctypes.c_void_p.in_dll(cf, "kCFBooleanTrue")
+            return cg.CGSSetConnectionProperty(connection, connection, key, true) == 0
+        finally:
+            cf.CFRelease(key)
+    except Exception:  # no such symbol, no such library: carry on without arrows
+        return False
 
 
 def _resize_cursor(edge: str):
@@ -373,6 +409,11 @@ class ClockView(NSView):
         self.cursor_for(self.edge_under(event)).set()
 
     def mouseExited_(self, event):
+        # Always hand the pointer back as an arrow. Besides being polite to
+        # whatever is underneath, it keeps AppKit's idea of "the current
+        # cursor" honest: AppKit skips a set() it believes is redundant, so
+        # if this were left as a resize arrow, the next visit to the same
+        # edge would not be sent to the window server at all.
         NSCursor.arrowCursor().set()
 
     def mouseDown_(self, event):
@@ -971,6 +1012,7 @@ class Controller(NSObject):
         about.show_welcome()
 
     def applicationDidFinishLaunching_(self, notification):
+        allow_background_cursor()  # so the edges can show resize arrows
         self.build()
         self.schedule_tick()
         if not self._state.welcomed:
