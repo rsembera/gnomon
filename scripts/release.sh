@@ -31,12 +31,19 @@ notarize() {
     # Apple says no.
     local target="$1" result
     result=$(xcrun notarytool submit "$target" --keychain-profile "$PROFILE" --wait 2>&1) || true
-    echo "$result" | grep -E "^ *(id|status):" | sed 's/^ */   /' | sort -u
+    # `|| true`: when the submission never got as far as an id (no network,
+    # say) grep finds nothing, and under `set -e -o pipefail` that would end
+    # the script right here, silently, before the explanation below.
+    echo "$result" | grep -E "^ *(id|status):" | sed 's/^ */   /' | sort -u || true
     if ! echo "$result" | grep -q "status: Accepted"; then
-        echo "Notarization of $target was NOT accepted. Apple's log:" >&2
+        echo "Notarization of $target was NOT accepted. notarytool said:" >&2
+        echo "$result" >&2
         local id
         id=$(echo "$result" | awk '/^ *id:/ {print $2; exit}')
-        [ -n "$id" ] && xcrun notarytool log "$id" --keychain-profile "$PROFILE" >&2 || echo "$result" >&2
+        if [ -n "$id" ]; then
+            echo "Apple's log for $id:" >&2
+            xcrun notarytool log "$id" --keychain-profile "$PROFILE" >&2 || true
+        fi
         exit 1
     fi
 }

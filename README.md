@@ -14,7 +14,7 @@ including into the menu bar beside the notch.
 
 Requires a Mac with Apple Silicon (M1 or later) and macOS 12 or newer.
 
-1. Download `Gnomon-1.5.0.dmg` from the
+1. Download `Gnomon-1.5.1.dmg` from the
    [Releases page](https://github.com/rsembera/gnomon/releases).
 2. Open it and drag Gnomon to Applications.
 3. Open Gnomon. The clock appears at the top centre of the screen, under the
@@ -24,8 +24,8 @@ Requires a Mac with Apple Silicon (M1 or later) and macOS 12 or newer.
 The app is signed and notarized by Apple, so it opens without a security
 warning. It makes no network connections and collects nothing.
 
-SHA-256 of `Gnomon-1.5.0.dmg`:
-`19130f4ed2c91d51e5d205f337a382cd601d275b1a29dacf81289ec4a3be1ae3`
+SHA-256 of `Gnomon-1.5.1.dmg`:
+`662407020c1366e23ff4a2cf85416a9ece5382c31183d846ed70cbf997b2e38f`
 
 ## Using it
 
