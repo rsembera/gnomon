@@ -74,5 +74,12 @@ notarize "$DMG"
 xcrun stapler staple "$DMG" > /dev/null
 spctl --assess --type open --context context:primary-signature "$DMG"
 
+# The same file under a fixed name, for the fixed download link on
+# richardsembera.ca/gnomon.html (github.com/rsembera/gnomon/releases/latest/
+# download/Gnomon.dmg). GitHub's "latest" skips pre-releases, so a release
+# meant for that link must not be marked as one.
+cp "$DMG" dist/Gnomon.dmg
+
 echo "Released: $DMG ($(du -h "$DMG" | cut -f1 | tr -d ' '))"
 echo "SHA-256:  $(shasum -a 256 "$DMG" | cut -d' ' -f1)"
+echo "Upload both $DMG and dist/Gnomon.dmg to the GitHub release (not as a pre-release)."
