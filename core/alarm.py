@@ -63,6 +63,22 @@ def next_occurrence(hour: int, minute: int, now: float) -> float:
     return candidate.timestamp()
 
 
+def session_end(hour: int, minute: int, now: float) -> float:
+    """The end time a session alert means: the next hh:mm, in whichever half
+    of the day comes sooner.
+
+    The form's time field keeps the a.m./p.m. of the time it opened on, so
+    at 11:30 a.m. a form offering 11:50 AM, retyped to 12:20, says 12:20 AM.
+    Read literally that is just after midnight tonight, and the alert would
+    stay silent through the session. No session alert is twelve hours away,
+    so the half of the day is taken as the one that comes first: 12:20 p.m.
+    """
+    return min(
+        next_occurrence(hour, minute, now),
+        next_occurrence((hour + 12) % 24, minute, now),
+    )
+
+
 def default_end(minute: int, now: float) -> float:
     """End time to offer in the form: the next hh:`minute` that is at least
     MIN_LEAD away."""

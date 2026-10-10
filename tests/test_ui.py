@@ -668,10 +668,48 @@ class TestSessionAlert:
         assert second._alarm == first._alarm
         assert (second._state.warn_minutes, second._state.end_minute) == (3, 20)
 
-    def test_an_alert_whose_session_is_over_is_not_restored(self, controller):
-        state.save(state.State(alarm_end=time.time() - 5))
+    def test_an_alert_whose_end_flash_is_over_is_not_restored(self, controller):
+        state.save(state.State(alarm_end=time.time() - alarm.END_FLASH_LIMIT - 5))
         c = controller()
         assert c._alarm is None and not c._view._armed
+
+    def test_a_relaunch_during_the_end_flash_keeps_the_flash(self, controller):
+        state.save(state.State(alarm_end=time.time() - 30))
+        c = controller()
+        assert c._alarm is not None
+        assert alarm.flashing(c._alarm, time.time()) == alarm.ENDED
+
+    @pytest.mark.parametrize("end", [1e12, 1e300])
+    def test_an_absurd_saved_end_is_dropped_and_the_menu_still_opens(self, controller, end):
+        state.save(state.State(alarm_end=end))
+        c = controller()
+        assert c._alarm is None
+        assert c.build_menu().numberOfItems() > 0
+
+    def _form_opens_on(self, controller, monkeypatch, alarm_now):
+        from ui import alert_form
+
+        c = controller()
+        c._alarm = alarm_now
+        seen = {}
+        monkeypatch.setattr(alert_form, "ask", lambda end, warn, armed: seen.update(end=end) or None)
+        c.sessionAlert_(None)
+        return seen["end"]
+
+    def test_form_opens_on_the_alert_that_is_set(self, controller, monkeypatch):
+        set_alarm = alarm.Alarm(end=time.time() + 1800, warn_minutes=5)
+        assert self._form_opens_on(controller, monkeypatch, set_alarm) == set_alarm.end
+
+    def test_form_after_a_session_ends_offers_the_next_one_not_tomorrow(self, controller, monkeypatch):
+        ended = alarm.Alarm(end=time.time() - 300, warn_minutes=5)  # red flash still running
+        offered = self._form_opens_on(controller, monkeypatch, ended)
+        assert time.time() < offered < time.time() + 3600 + alarm.MIN_LEAD
+
+    def test_a_time_typed_in_the_wrong_half_of_the_day_lands_in_the_right_one(self, controller):
+        c = controller()
+        eleven_thirty = NOW - 2.5 * 3600
+        c.set_alarm(0, 20, 5, now=eleven_thirty)  # "12:20 AM" left over from an 11:50 AM default
+        assert c._alarm.end == eleven_thirty + 50 * 60  # 12:20 p.m., today
 
     def test_setting_remembers_the_warning_and_the_minute(self, controller):
         c = controller()

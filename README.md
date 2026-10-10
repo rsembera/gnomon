@@ -14,7 +14,7 @@ including into the menu bar beside the notch.
 
 Requires a Mac with Apple Silicon (M1 or later) and macOS 12 or newer.
 
-1. Download `Gnomon-1.5.1.dmg` from the
+1. Download `Gnomon-1.5.2.dmg` from the
    [Releases page](https://github.com/rsembera/gnomon/releases).
 2. Open it and drag Gnomon to Applications.
 3. Open Gnomon. The clock appears at the top centre of the screen, under the
@@ -24,8 +24,8 @@ Requires a Mac with Apple Silicon (M1 or later) and macOS 12 or newer.
 The app is signed and notarized by Apple, so it opens without a security
 warning. It makes no network connections and collects nothing.
 
-SHA-256 of `Gnomon-1.5.1.dmg`:
-`662407020c1366e23ff4a2cf85416a9ece5382c31183d846ed70cbf997b2e38f`
+SHA-256 of `Gnomon-1.5.2.dmg`:
+`df7117cfdd4aab6efa9764bebb03b20349aed53c23a51998c1b905be9dcfa499`
 
 ## Using it
 
@@ -59,12 +59,15 @@ of the tile while an alert is set.
 - To change or cancel one, open the same menu item (it shows what is set), or
   choose **Turn Off Session Alert**.
 
-The menu shows what is set with a.m. or p.m. spelled out ("2:50 p.m., 5 min
-warning"), so a time entered in the wrong half of the day is visible. An end
-time that has already passed today is taken to mean tomorrow, and the menu
-says that too ("9:00 a.m. tomorrow"). An end flash that nobody clicks stops
-by itself after ten minutes. The form opens on the minute of the hour you
-used last (ten to the hour, the first time) and the warning you used last.
+A session alert is never more than twelve hours away, so the end time is
+taken in whichever half of the day comes first: at 11:30 a.m., 12:20 means
+12:20 p.m. even if the form still says AM, and at 11:30 p.m., 12:10 means ten
+past midnight. The menu shows what is set with a.m. or p.m. spelled out
+("2:50 p.m., 5 min warning", "12:10 a.m. tomorrow"). An end flash that nobody
+clicks stops by itself after ten minutes, and it carries on if Gnomon is
+restarted in the meantime. The form opens on the alert that is set, or, once
+a session has ended, on the next one: the minute of the hour you used last
+(ten to the hour, the first time) and the warning you used last.
 
 Position, size, colours, font and any alert that is set are remembered
 between launches. If the remembered spot is on a monitor that is no longer

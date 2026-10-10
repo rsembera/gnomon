@@ -583,9 +583,17 @@ class Controller(NSObject):
         self._timer = None
         self._aspect = 1.0
         self._exact_height = self._state.height
-        # A saved alert is picked up again only if its session has not ended.
+        # A saved alert is picked up again while it still has something to
+        # do: the session has not ended, or its end flash has not yet run its
+        # ten minutes (a relaunch during the flash should not swallow it).
+        # Anything more than two days out is a damaged file, not an alert,
+        # and would break the menu's description of it.
         self._alarm = None
-        if self._state.alarm_end is not None and self._state.alarm_end > time.time():
+        saved_end, launched = self._state.alarm_end, time.time()
+        if (
+            saved_end is not None
+            and launched - alarm.END_FLASH_LIMIT < saved_end < launched + 2 * 86400
+        ):
             self._alarm = alarm.Alarm(
                 end=self._state.alarm_end,
                 warn_minutes=self._state.warn_minutes,
@@ -824,7 +832,7 @@ class Controller(NSObject):
     @objc.python_method
     def set_alarm(self, hour: int, minute: int, warn_minutes: int, now: float | None = None):
         now = time.time() if now is None else now
-        self._alarm = alarm.arm(alarm.next_occurrence(hour, minute, now), warn_minutes, now)
+        self._alarm = alarm.arm(alarm.session_end(hour, minute, now), warn_minutes, now)
         self._state.warn_minutes = self._alarm.warn_minutes
         self._state.end_minute = minute
         self.refresh(now)
@@ -850,7 +858,10 @@ class Controller(NSObject):
 
     def sessionAlert_(self, sender):
         now = time.time()
-        if self._alarm is not None:
+        # A session that has already ended (its red flash may still be
+        # running) is not offered again: "Set" on it would re-arm it for the
+        # same time tomorrow. The form opens on the next session instead.
+        if self._alarm is not None and now < self._alarm.end:
             end, warn = self._alarm.end, self._alarm.warn_minutes
         else:
             end = alarm.default_end(self._state.end_minute, now)

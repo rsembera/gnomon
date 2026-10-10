@@ -18,6 +18,32 @@ def hm(stamp):
     return (moment.hour, moment.minute, moment.second)
 
 
+class TestSessionEnd:
+    """The half of the day is the sooner one: no alert is 12 hours away."""
+
+    morning = NOW - 2.5 * 3600  # 11:30
+
+    def test_12_20_am_typed_at_11_30_am_means_12_20_pm(self):
+        end = alarm.session_end(0, 20, self.morning)
+        assert hm(end) == (12, 20, 0) and end - self.morning == 50 * 60
+
+    def test_2_50_am_typed_at_2_pm_means_2_50_pm(self):
+        assert alarm.session_end(2, 50, NOW) == END
+
+    def test_the_right_half_is_left_alone(self):
+        assert alarm.session_end(14, 50, NOW) == END
+
+    def test_a_pm_time_typed_in_the_evening_crosses_midnight(self):
+        evening = NOW + 9.5 * 3600  # 23:30
+        end = alarm.session_end(12, 10, evening)  # "12:10 PM" meant as 00:10
+        assert hm(end) == (0, 10, 0) and end - evening == 40 * 60
+
+    @pytest.mark.parametrize("hour", range(24))
+    def test_never_more_than_12_hours_away(self, hour):
+        for minute in (0, 1, 29, 59):
+            assert 0 < alarm.session_end(hour, minute, NOW + 17) - (NOW + 17) <= 12 * 3600
+
+
 class TestEndTime:
     def test_later_today(self):
         end = alarm.next_occurrence(14, 50, NOW)
