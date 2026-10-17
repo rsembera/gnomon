@@ -26,6 +26,7 @@ THIRD_PARTY_PACKAGES = [
     'AppKit',
     'Foundation',
     'CoreFoundation',
+    'ServiceManagement',  # Open at Login (SMAppService, macOS 13+)
 ]
 
 FIRST_PARTY_PACKAGES = [

@@ -1,2 +1,3 @@
 # Runtime
 pyobjc-framework-Cocoa>=12.0
+pyobjc-framework-ServiceManagement>=12.0

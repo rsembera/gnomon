@@ -86,7 +86,7 @@ from Foundation import (
 from PyObjCTools import AppHelper
 
 from core import alarm, clockface, fonts, schemes, sevenseg, state
-from ui import about, alert_form
+from ui import about, alert_form, login
 
 APP_NAME = "Gnomon"
 
@@ -936,6 +936,8 @@ class Controller(NSObject):
             add(places, label, "moveTo:", checked=anchor == parked).setTag_(index)
         add(menu, "Move To", None).setSubmenu_(places)
         menu.addItem_(NSMenuItem.separatorItem())
+        if login.available():
+            add(menu, "Open at Login", "toggleLogin:", checked=login.is_on())
         add(menu, f"About {APP_NAME}", "aboutGnomon:")
         add(menu, f"Quit {APP_NAME}", "terminate:", target=NSApplication.sharedApplication())
         return menu
@@ -1013,6 +1015,9 @@ class Controller(NSObject):
 
     def aboutGnomon_(self, sender):
         about.show_about()
+
+    def toggleLogin_(self, sender):
+        login.toggle()
 
     def showWelcome_(self, _unused):
         # Marked as shown BEFORE it goes up: if anything interrupts it, the

@@ -1105,3 +1105,19 @@ class TestEdgeResizing:
         assert h > start[3]
         assert c.current_anchor() == "bottom-right"
         assert (x, y) == tuple(c.anchored_origin("bottom-right", (w, h)))
+
+
+class TestOpenAtLogin:
+    def test_menu_offers_it_only_when_available(self, controller, monkeypatch):
+        from ui import login
+
+        c = controller()
+        assert c.build_menu().itemWithTitle_("Open at Login") is None  # run from source
+
+        class Enabled:
+            def status(self):
+                return login.ENABLED
+
+        monkeypatch.setattr(login, "_service", lambda: Enabled())
+        item = c.build_menu().itemWithTitle_("Open at Login")
+        assert item is not None and item.state() == AppKit.NSControlStateValueOn

@@ -14,7 +14,7 @@ including into the menu bar beside the notch.
 
 Requires a Mac with Apple Silicon (M1 or later) and macOS 12 or newer.
 
-1. Download `Gnomon-1.5.2.dmg` from the
+1. Download `Gnomon-1.5.3.dmg` from the
    [Releases page](https://github.com/rsembera/gnomon/releases).
 2. Open it and drag Gnomon to Applications.
 3. Open Gnomon. The clock appears at the top centre of the screen, under the
@@ -24,8 +24,8 @@ Requires a Mac with Apple Silicon (M1 or later) and macOS 12 or newer.
 The app is signed and notarized by Apple, so it opens without a security
 warning. It makes no network connections and collects nothing.
 
-SHA-256 of `Gnomon-1.5.2.dmg`:
-`df7117cfdd4aab6efa9764bebb03b20349aed53c23a51998c1b905be9dcfa499`
+SHA-256 of `Gnomon-1.5.3.dmg`:
+`99ff5b5604259b33cc26244b6fe975d6025f8a536f6d23e79fef734c4ff11979`
 
 ## Using it
 
@@ -35,7 +35,11 @@ SHA-256 of `Gnomon-1.5.2.dmg`:
   is locked, so the whole clock scales; 20 to 240 points tall.
 - **Menu:** right-click (or two-finger click) the tile — Session Alert,
   24-Hour Time, Colours, Font, Size (Small / Medium / Large), Move To,
-  About Gnomon, Quit Gnomon.
+  Open at Login, About Gnomon, Quit Gnomon.
+- **Open at Login:** tick it and Gnomon starts whenever you log in. It adds
+  Gnomon to System Settings > General > Login Items, and can be undone from
+  either place. macOS 13 and newer; on macOS 12, add Gnomon to System
+  Preferences > Users & Groups > Login Items by hand.
 - **Colours:** three dark (White, Green or Amber digits on black) and three
   light (Black, Blue or Red digits on a pale tile).
 - **Font:** Standard, Serif, Mono, DIN, Typewriter, LED. The tile keeps its
