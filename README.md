@@ -14,7 +14,7 @@ including into the menu bar beside the notch.
 
 Requires a Mac with Apple Silicon (M1 or later) and macOS 12 or newer.
 
-1. Download `Gnomon-1.5.3.dmg` from the
+1. Download `Gnomon-1.5.4.dmg` from the
    [Releases page](https://github.com/rsembera/gnomon/releases).
 2. Open it and drag Gnomon to Applications.
 3. Open Gnomon. The clock appears at the top centre of the screen, under the
@@ -24,8 +24,8 @@ Requires a Mac with Apple Silicon (M1 or later) and macOS 12 or newer.
 The app is signed and notarized by Apple, so it opens without a security
 warning. It makes no network connections and collects nothing.
 
-SHA-256 of `Gnomon-1.5.3.dmg`:
-`99ff5b5604259b33cc26244b6fe975d6025f8a536f6d23e79fef734c4ff11979`
+SHA-256 of `Gnomon-1.5.4.dmg`:
+`c5da13a61cb9759cc4cf5a196da03efeec279e63b6721539df0ab6ba8faf2499`
 
 ## Using it
 
@@ -46,7 +46,8 @@ SHA-256 of `Gnomon-1.5.3.dmg`:
   height and changes width to suit the face.
 - **Move To:** Top Centre, Top Right, Bottom Right, Bottom Centre, Bottom
   Left, Top Left, on whichever screen the tile is on. A tile parked this way
-  stays parked when it is resized; dragging it anywhere else lets go.
+  stays parked when it is resized, and when a monitor is plugged in or
+  unplugged or the resolution changes; dragging it anywhere else lets go.
 - **Quit:** from that menu. There is no Dock icon and no menu bar; the tile
   is the whole interface. The first time it runs, Gnomon says so.
 
@@ -66,7 +67,10 @@ of the tile while an alert is set.
 A session alert is never more than twelve hours away, so the end time is
 taken in whichever half of the day comes first: at 11:30 a.m., 12:20 means
 12:20 p.m. even if the form still says AM, and at 11:30 p.m., 12:10 means ten
-past midnight. The menu shows what is set with a.m. or p.m. spelled out
+past midnight. (Where macOS is set to 24-hour time the form has no AM or PM
+to be left over, and the time is taken exactly as typed.) A time that went by
+within the last hour, 2:50 typed at 2:51, is not set: the form comes back and
+says so. The menu shows what is set with a.m. or p.m. spelled out
 ("2:50 p.m., 5 min warning", "12:10 a.m. tomorrow"). An end flash that nobody
 clicks stops by itself after ten minutes, and it carries on if Gnomon is
 restarted in the meantime. The form opens on the alert that is set, or, once
@@ -75,7 +79,8 @@ a session has ended, on the next one: the minute of the hour you used last
 
 Position, size, colours, font and any alert that is set are remembered
 between launches. If the remembered spot is on a monitor that is no longer
-attached, the clock opens at top centre instead.
+attached, the clock opens at top centre instead. If you lose track of the
+clock, open Gnomon again: the one already running comes back to top centre.
 
 ## Running it
 

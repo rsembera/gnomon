@@ -33,6 +33,10 @@ MIN_LEAD = 5 * 60.0
 # left running after the last session is not still flashing in the morning.
 END_FLASH_LIMIT = 10 * 60.0
 
+# An end time that went by less than this long ago is a slip of the fingers
+# (2:50 typed at 2:51), not a request for the same time tomorrow.
+JUST_PASSED = 60 * 60.0
+
 IDLE = "idle"
 WARNING = "warning"
 ENDED = "ended"
@@ -63,7 +67,7 @@ def next_occurrence(hour: int, minute: int, now: float) -> float:
     return candidate.timestamp()
 
 
-def session_end(hour: int, minute: int, now: float) -> float:
+def session_end(hour: int, minute: int, now: float, literal: bool = False) -> float:
     """The end time a session alert means: the next hh:mm, in whichever half
     of the day comes sooner.
 
@@ -72,11 +76,36 @@ def session_end(hour: int, minute: int, now: float) -> float:
     Read literally that is just after midnight tonight, and the alert would
     stay silent through the session. No session alert is twelve hours away,
     so the half of the day is taken as the one that comes first: 12:20 p.m.
+
+    `literal` is for a form in 24-hour time. There is no a.m./p.m. there to
+    be left over, so the time is taken as typed: 21:00 means 21:00.
     """
+    if literal:
+        return next_occurrence(hour, minute, now)
     return min(
         next_occurrence(hour, minute, now),
         next_occurrence((hour + 12) % 24, minute, now),
     )
+
+
+def just_passed(hour: int, minute: int, now: float, literal: bool = False) -> bool:
+    """True if the clock read hour:minute within the last JUST_PASSED seconds
+    (in either half of the day, unless `literal`).
+
+    Such a time is not armed. session_end would take it for the next time
+    round, half a day or a day off, and the alert would sit there looking
+    set while the session it was meant for ran over.
+    """
+    hours = (hour,) if literal else (hour, (hour + 12) % 24)
+    for candidate_hour in hours:
+        candidate = datetime.fromtimestamp(now).replace(
+            hour=candidate_hour, minute=minute, second=0, microsecond=0
+        )
+        if candidate.timestamp() > now:
+            candidate -= timedelta(days=1)
+        if now - candidate.timestamp() < JUST_PASSED:
+            return True
+    return False
 
 
 def default_end(minute: int, now: float) -> float:

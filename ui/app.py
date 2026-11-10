@@ -333,6 +333,7 @@ class ClockView(NSView):
         self._text = ""
         self._scheme = schemes.DEFAULT
         self._flash = None    # alarm.WARNING / alarm.ENDED while lit, else None
+        self._flashing = False  # an alert is flashing, lit half or dark half
         self._armed = False   # a session alert is set: show the small dot
         self._controller = None
         self.set_face(fonts.DEFAULT)
@@ -394,8 +395,9 @@ class ClockView(NSView):
     @objc.python_method
     def cursor_for(self, edge: str | None):
         # While the tile is flashing a click anywhere answers the flash, so
-        # it offers no resize arrows then.
-        if edge is None or self._flash is not None:
+        # it offers no resize arrows then: in the dark half of the flash as
+        # much as in the lit one.
+        if edge is None or self._flashing:
             return NSCursor.arrowCursor()
         return _resize_cursor(edge)
 
@@ -588,6 +590,10 @@ class Controller(NSObject):
         # ten minutes (a relaunch during the flash should not swallow it).
         # Anything more than two days out is a damaged file, not an alert,
         # and would break the menu's description of it.
+        # The screens as last seen (see windowDidMove_), and whether the tile
+        # was built while there was no screen to put it on.
+        self._screens = []
+        self._homeless = False
         self._alarm = None
         saved_end, launched = self._state.alarm_end, time.time()
         if (
@@ -639,6 +645,7 @@ class Controller(NSObject):
         panel.setDelegate_(self)
 
         self._panel, self._view = panel, view
+        self._screens = self.screen_rects()
         self._exact_height = size[1]
         self.refresh()
         if show:
@@ -674,6 +681,12 @@ class Controller(NSObject):
     @objc.python_method
     def initial_frame(self, size) -> clockface.Rect:
         saved = self._state
+        if not NSScreen.screens():
+            # No display at all (lid closed at login, a monitor not yet
+            # awake). Open anywhere; screensChanged_ brings the tile home
+            # when a screen turns up.
+            self._homeless = True
+            return (saved.x or 0.0, saved.y or 0.0, size[0], size[1])
         if saved.x is not None and saved.y is not None:
             frame = (saved.x, saved.y, size[0], size[1])
             if clockface.is_reachable(frame, self.screen_rects()):
@@ -707,6 +720,7 @@ class Controller(NSObject):
         armed = self._alarm is not None
 
         view = self._view
+        view._flashing = flash is not None
         if (text, lit, armed) != (view._text, view._flash, view._armed):
             view._text, view._flash, view._armed = text, lit, armed
             view.setNeedsDisplay_(True)
@@ -750,7 +764,11 @@ class Controller(NSObject):
     @objc.python_method
     def anchored_origin(self, anchor: str, size):
         """Where `anchor` is on the screen the tile is on now."""
-        screen = self._panel.screen() or NSScreen.screens()[0]
+        screens = NSScreen.screens()
+        screen = self._panel.screen() or (screens[0] if screens else None)
+        if screen is None:  # no display just now: where it is will do
+            origin = self._panel.frame().origin
+            return (origin.x, origin.y)
         return clockface.anchored_origin(
             _rect(screen.frame()), _rect(screen.visibleFrame()), size, anchor
         )
@@ -799,6 +817,8 @@ class Controller(NSObject):
 
     @objc.python_method
     def go_home(self):
+        if not NSScreen.screens():
+            return
         size = _rect(self._panel.frame())[2:]
         self._state.anchor = "top-centre"
         self._panel.setFrameOrigin_(self.home_origin(size))
@@ -814,15 +834,35 @@ class Controller(NSObject):
         self.save_soon()
 
     def windowDidMove_(self, notification):
-        if self._panel is not None:
-            self.save_soon()
-
-    def screensChanged_(self, notification):
-        # A monitor was unplugged or rearranged: if that left the tile
-        # somewhere it cannot be grabbed, bring it back.
         if self._panel is None:
             return
-        if not clockface.is_reachable(_rect(self._panel.frame()), self.screen_rects()):
+        # Dragged off its "Move To" spot: the anchor lapses here and now.
+        # Only while the screens are as they were, though. A move that comes
+        # with a change of screens is macOS shuffling windows about, not the
+        # person, and screensChanged_ puts the tile back at its anchor.
+        if self._state.anchor is not None and self.screen_rects() == self._screens:
+            self.current_anchor()
+        self.save_soon()
+
+    def screensChanged_(self, notification):
+        # A monitor was plugged in, unplugged or rearranged, or the
+        # resolution changed. A parked tile is parked again at the same spot
+        # of the screen it is on now; a tile left somewhere it cannot be
+        # grabbed is brought back.
+        if self._panel is None:
+            return
+        self._screens = self.screen_rects()
+        if not self._screens:
+            return  # nothing to place it on; another notice follows
+        anchor = self._state.anchor
+        if self._homeless:
+            self._homeless = False
+            self.go_home()
+        elif anchor is not None:
+            size = _rect(self._panel.frame())[2:]
+            self._panel.setFrameOrigin_(self.anchored_origin(anchor, size))
+            self.save_soon()
+        elif not clockface.is_reachable(_rect(self._panel.frame()), self._screens):
             self.go_home()
 
     # ------------------------------------------------------------------
@@ -830,9 +870,15 @@ class Controller(NSObject):
     # ------------------------------------------------------------------
 
     @objc.python_method
-    def set_alarm(self, hour: int, minute: int, warn_minutes: int, now: float | None = None):
+    def set_alarm(
+        self, hour: int, minute: int, warn_minutes: int,
+        now: float | None = None, literal: bool = False,
+    ):
+        """Arm the alert for hour:minute. `literal` says the time came from
+        a 24-hour form and is to be taken as typed (alarm.session_end)."""
         now = time.time() if now is None else now
-        self._alarm = alarm.arm(alarm.session_end(hour, minute, now), warn_minutes, now)
+        end = alarm.session_end(hour, minute, now, literal)
+        self._alarm = alarm.arm(end, warn_minutes, now)
         self._state.warn_minutes = self._alarm.warn_minutes
         self._state.end_minute = minute
         self.refresh(now)
@@ -866,14 +912,25 @@ class Controller(NSObject):
         else:
             end = alarm.default_end(self._state.end_minute, now)
             warn = self._state.warn_minutes
-        answer = alert_form.ask(end, warn, armed=self._alarm is not None)
-        if answer is None:
-            return
-        if answer[0] == alert_form.OFF:
-            self.clear_alarm()
-        else:
-            _, hour, minute, warn_minutes = answer
-            self.set_alarm(hour, minute, warn_minutes)
+        # The form's time field follows the macOS setting, not Gnomon's own
+        # 24-hour switch, so that is what says whether a typed time can be
+        # in the wrong half of the day.
+        literal = system_uses_24h()
+        note = {}
+        while True:
+            answer = alert_form.ask(end, warn, armed=self._alarm is not None, **note)
+            if answer is None:
+                return
+            if answer[0] == alert_form.OFF:
+                self.clear_alarm()
+                return
+            _, hour, minute, warn = answer
+            if not alarm.just_passed(hour, minute, time.time(), literal):
+                self.set_alarm(hour, minute, warn, literal=literal)
+                return
+            # 2:50 typed at 2:51. Armed, it would mean the small hours of
+            # tomorrow; ask again instead, saying why.
+            note = {"note": "That time has just gone by. Choose a later one."}
 
     def turnOffAlert_(self, sender):
         self.clear_alarm()
@@ -943,7 +1000,10 @@ class Controller(NSObject):
         return menu
 
     def toggleHours_(self, sender):
-        self._state.twenty_four = not self.uses_24h()
+        wanted = not self.uses_24h()
+        # Switched back to what macOS itself is set to: follow macOS again,
+        # rather than pin the choice against a later change there.
+        self._state.twenty_four = None if wanted == system_uses_24h() else wanted
         self.refresh()
         self.save_soon()
 
@@ -1037,6 +1097,15 @@ class Controller(NSObject):
         NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
             self, "screensChanged:", NSApplicationDidChangeScreenParametersNotification, None
         )
+
+    def applicationShouldHandleReopen_hasVisibleWindows_(self, app, visible):
+        # Gnomon opened again while it is already running: someone is
+        # looking for the clock (it may be on a display that is switched
+        # off). Put it back at top centre, where the first launch had it.
+        if self._panel is not None:
+            self.go_home()
+            self._panel.orderFrontRegardless()
+        return False
 
     def applicationWillTerminate_(self, notification):
         self.save_now()

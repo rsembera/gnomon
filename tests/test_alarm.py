@@ -173,3 +173,43 @@ class TestDescribe:
         # A mistyped (already past) end time arms for tomorrow; the menu says so.
         a = alarm.arm(alarm.next_occurrence(9, 0, NOW), 5, NOW)
         assert alarm.describe(a, NOW, False) == "9:00 a.m. tomorrow, 5 min warning"
+
+
+class TestLiteralEnd:
+    """A 24-hour form has no a.m./p.m. to be left over: taken as typed."""
+
+    def test_21_00_typed_at_8_00_means_21_00(self):
+        eight = NOW - 6 * 3600
+        end = alarm.session_end(21, 0, eight, literal=True)
+        assert hm(end) == (21, 0, 0) and end - eight == 13 * 3600
+
+    def test_the_12_hour_reading_of_the_same_is_9_00(self):
+        eight = NOW - 6 * 3600
+        assert hm(alarm.session_end(21, 0, eight)) == (9, 0, 0)
+
+
+class TestJustPassed:
+    """2:50 typed at 2:51 is a slip, not a request for 2:50 tomorrow."""
+
+    def test_a_minute_ago(self):
+        assert alarm.just_passed(14, 50, END + 60)
+
+    def test_this_very_minute(self):
+        assert alarm.just_passed(14, 50, END + 30)
+
+    def test_either_half_of_the_day_on_a_12_hour_form(self):
+        assert alarm.just_passed(2, 50, END + 60)
+        assert not alarm.just_passed(2, 50, END + 60, literal=True)
+
+    def test_still_to_come_is_not_passed(self):
+        assert not alarm.just_passed(14, 50, NOW)
+        assert not alarm.just_passed(14, 50, END - 1)
+
+    def test_more_than_an_hour_ago_is_the_next_time_round(self):
+        assert alarm.just_passed(14, 50, END + alarm.JUST_PASSED - 1)
+        assert not alarm.just_passed(14, 50, END + alarm.JUST_PASSED)
+
+    def test_just_after_midnight(self):
+        midnight = NOW + 10 * 3600  # 00:00 the next day
+        assert alarm.just_passed(23, 55, midnight + 120)
+        assert not alarm.just_passed(0, 30, midnight + 120)

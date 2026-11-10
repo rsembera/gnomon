@@ -72,14 +72,19 @@ def read_form(picker, popup) -> tuple[int, int, int]:
     return chosen.hour, chosen.minute, int(popup.indexOfSelectedItem())
 
 
-def build_alert(end: float, warn_minutes: int, armed: bool):
-    """(alert, time picker, warning pop-up), ready to run."""
+def build_alert(end: float, warn_minutes: int, armed: bool, note: str | None = None):
+    """(alert, time picker, warning pop-up), ready to run.
+
+    `note` replaces the usual explanation when the form is being shown a
+    second time because the first answer could not be used.
+    """
     form, picker, popup = build_form(end, warn_minutes)
 
     alert = NSAlert.alloc().init()
     alert.setMessageText_("Session alert")
     alert.setInformativeText_(
-        "The clock flashes at the warning and again when the session ends. "
+        note
+        or "The clock flashes at the warning and again when the session ends. "
         "Click the clock to stop the flashing."
     )
     alert.addButtonWithTitle_("Set")      # Return
@@ -124,14 +129,14 @@ def run_in_front(alert):
             previous.activateWithOptions_(0)
 
 
-def ask(end: float, warn_minutes: int, armed: bool):
+def ask(end: float, warn_minutes: int, armed: bool, note: str | None = None):
     """Show the form and wait for an answer.
 
     Returns (SET, hour, minute, warn_minutes), (OFF,) or None for Cancel.
     The clock keeps ticking behind it: its timer runs in the common run-loop
     modes, which include the modal one.
     """
-    alert, picker, popup = build_alert(end, warn_minutes, armed)
+    alert, picker, popup = build_alert(end, warn_minutes, armed, note)
 
     response = run_in_front(alert)
     if response == NSAlertFirstButtonReturn:

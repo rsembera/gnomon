@@ -48,13 +48,26 @@ notarize() {
     fi
 }
 
+sign() {
+    # codesign is chatty on stderr when all is well ("replacing existing
+    # signature"), so its output is kept back, and shown only if it fails:
+    # an expired certificate or a locked keychain should say so, not just
+    # end the script.
+    local out
+    out=$(codesign --force --options runtime --timestamp --sign "$IDENTITY" "$@" 2>&1) || {
+        echo "codesign FAILED on ${*: -1}:" >&2
+        echo "$out" >&2
+        exit 1
+    }
+}
+
 echo "== sign the app (Developer ID, hardened runtime)"
 # Every library individually FIRST, then the bundle: notarization rejects
 # the app otherwise (learned on EdgeCase).
 find "$APP" -type f \( -name "*.so" -o -name "*.dylib" \) | while read -r file; do
-    codesign --force --options runtime --timestamp --sign "$IDENTITY" "$file" 2> /dev/null
+    sign "$file"
 done
-codesign --force --options runtime --timestamp --sign "$IDENTITY" --deep "$APP" 2> /dev/null
+sign --deep "$APP"
 codesign --verify --deep --strict "$APP"
 
 echo "== notarize the app (a few minutes)"

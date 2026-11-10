@@ -77,7 +77,9 @@ done < <(compiled_files)
 echo "   $(compiled_files | wc -l | tr -d ' ') compiled files, all Apple Silicon, all run on macOS $DECLARED or newer"
 
 echo "== sign (ad-hoc: enough for this Mac, not for anyone else's)"
-codesign --force --deep -s - "$APP" 2> /dev/null
+codesign --force --deep -s - "$APP" 2> codesign.log \
+    || { cat codesign.log >&2; rm -f codesign.log; exit 1; }
+rm -f codesign.log
 codesign --verify --deep --strict "$APP"
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist")

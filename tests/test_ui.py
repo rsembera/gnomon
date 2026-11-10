@@ -1121,3 +1121,79 @@ class TestOpenAtLogin:
         monkeypatch.setattr(login, "_service", lambda: Enabled())
         item = c.build_menu().itemWithTitle_("Open at Login")
         assert item is not None and item.state() == AppKit.NSControlStateValueOn
+
+
+class TestSlipsAndStrays:
+    """Fixes from the November 2026 review."""
+
+    def test_no_resize_arrows_in_the_dark_half_of_a_flash_either(self, controller):
+        c = controller()
+        c.set_alarm(14, 50, 5, now=NOW)
+        c.refresh(NOW + 45 * 60 + 1)  # an odd second: flashing, but not lit
+        assert c._view._flash is None and c._view._flashing
+        assert c._view.cursor_for("left") == AppKit.NSCursor.arrowCursor()
+        c.acknowledge(NOW + 45 * 60 + 1)
+        assert not c._view._flashing
+        assert c._view.cursor_for("left") != AppKit.NSCursor.arrowCursor()
+
+    def test_a_time_just_gone_by_is_asked_for_again_not_armed(self, controller, monkeypatch):
+        from ui import alert_form
+
+        c = controller()
+        gone = time.localtime(time.time() - 90)
+        notes = []
+
+        def ask(end, warn, armed, note=None):
+            notes.append(note)
+            return (alert_form.SET, gone.tm_hour, gone.tm_min, 5) if len(notes) == 1 else None
+
+        monkeypatch.setattr(alert_form, "ask", ask)
+        c.sessionAlert_(None)
+        assert c._alarm is None
+        assert notes[0] is None and "gone by" in notes[1]
+
+    def test_a_literal_time_is_armed_as_typed(self, controller):
+        c = controller()
+        eight = NOW - 6 * 3600
+        c.set_alarm(21, 0, 5, now=eight, literal=True)
+        assert c._alarm.end == eight + 13 * 3600
+
+    def test_hour_toggle_back_to_the_system_setting_follows_the_system_again(self, controller):
+        c = controller()
+        assert c._state.twenty_four is None
+        c.toggleHours_(None)
+        assert c._state.twenty_four is not None
+        c.toggleHours_(None)
+        assert c._state.twenty_four is None
+
+    def test_dragging_a_parked_tile_away_lapses_the_anchor_at_once(self, controller):
+        c = controller()
+        c.move_to("top-right")
+        assert c._state.anchor == "top-right"
+        x, y, _w, _h = frame_of(c)
+        c._panel.setFrameOrigin_((x - 200, y - 200))
+        assert c._state.anchor is None
+
+    def test_a_parked_tile_is_parked_again_when_the_screens_change(self, controller):
+        c = controller()
+        c.move_to("bottom-right")
+        parked = frame_of(c)
+        c._screens = []  # as when macOS moves windows about during a change of screens
+        c._panel.setFrameOrigin_((parked[0] - 300, parked[1] + 200))
+        assert c._state.anchor == "bottom-right"
+        c.screensChanged_(None)
+        assert frame_of(c) == parked and c.current_anchor() == "bottom-right"
+
+    def test_an_unparked_tile_stays_put_when_the_screens_change(self, controller):
+        c = controller()
+        c._panel.setFrameOrigin_((300, 300))
+        c.screensChanged_(None)
+        assert frame_of(c)[:2] == (300, 300) and c._state.anchor is None
+
+    def test_opening_gnomon_again_brings_the_tile_home(self, controller):
+        c = controller()
+        home = frame_of(c)
+        c._panel.setFrameOrigin_((300, 300))
+        assert c.applicationShouldHandleReopen_hasVisibleWindows_(None, False) is False
+        assert frame_of(c) == home and c.current_anchor() == "top-centre"
+        c._panel.orderOut_(None)
